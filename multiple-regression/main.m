@@ -1,12 +1,14 @@
 clear;
-graphics_toolkit ("gnuplot") 
+graphics_toolkit ("gnuplot");
+
+dir = './forest-fires';
 
 % Read in data from csv file.
-fileName = './forest-fires/data-clean.csv';
+fileName = sprintf('%s/data-clean.csv', dir);
 data = csvread(fileName);
 
 % Split up the data into training and testing.
-[trainData, testData] = partitionData(data, 0.9);
+[trainData, testData] = partitionData(data, 0.70);
 
 % y is the last column of the data.
 % x is all but the last column of the data.
@@ -32,9 +34,10 @@ testMSE = meanSquaredError(predictedTest, testY);
 subplot(1,2,1);
 x = [0:1:size(trainX,1)-1];
 plot(x, trainY, 'b.', 'MarkerSize', 5);
-title(sprintf('Train data: R^2 = %f, MSE = %f', trainRS, trainMSE));
+title(sprintf('Train data: m = %d, R^2 = %f, MSE = %f', size(trainData, 1), trainRS, trainMSE));
 hold on;
 plot(x, predictedTrain, 'r.', 'MarkerSize', 5);
+axis([min(x), max(x), min([min(trainY), min(testY)]), max([max(trainY), max(testY)])])
 xlabel('Sample');
 ylabel('Area burned (ha)');
 legend ('actual', 'predicted');
@@ -45,10 +48,12 @@ x = [0:1:size(testX,1)-1];
 plot(x, testY, 'b.', 'MarkerSize', 5);
 hold on;
 plot(x, predictedTest, 'r.', 'MarkerSize', 5);
-title(sprintf('Test data: R^2 = %f, MSE = %f', testRS, testMSE));
+axis([min(x), max(x), min([min(trainY), min(testY)]), max([max(trainY), max(testY)])])
+title(sprintf('Test data: m = %d, R^2 = %f, MSE = %f', size(testData, 1), testRS, testMSE));
 xlabel('Sample');
 ylabel('Area burned (ha)');
 legend ('actual', 'predicted');
 
 % Save plot
-print plot.svg 
+p = sprintf('%s/plot.svg',dir);
+print(p);
