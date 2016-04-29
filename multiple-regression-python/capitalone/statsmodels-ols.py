@@ -19,33 +19,34 @@ def model(tv, trainProportion = 0.8):
     ty = t['TOT_DEP'].as_matrix()
     tX = t.drop('TOT_DEP', 1).as_matrix()
 
+    # create and fit a model using training data
     tX = sm.add_constant(tX)
     olsmod = sm.OLS(ty, tX)
-    olsres = olsmod.fit()
+    olsfit = olsmod.fit()
 
+    # extract X and y from validation and predit using fit
     vy = v['TOT_DEP'].as_matrix()
     vX = v.drop('TOT_DEP', 1).as_matrix()
-
     vX = sm.add_constant(vX)
-    vpred = olsres.predict(vX)
+    vpred = olsfit.predict(vX)
 
-    return vy, vpred, olsres
+    # return validaton y, validation prediction, and fit
+    return vy, vpred, olsfit
 
-def model_predict(ho, olsres):
+def model_predict(ho, olsfit):
     hoX = ho.drop('TOT_DEP', 1).as_matrix()
-    return np.round(olsres.predict(hoX))
+    return np.round(olsfit.predict(hoX))
 
 tv, ho = prep_data()
 
-maxr2 = 0
-for _ in range(2000):
-    vy, vpred, olsres = model(tv, 0.7)
+maxr2 = -1 * sys.maxsize
+for i in range(1000):
+    vy, vpred, olsfit = model(tv, 0.7)
     r2 = metrics.r2_score(vy, vpred)
-    print(r2)
     if r2 > maxr2:
         maxr2 = r2
-        maxolsres = olsres
+        maxolsfit = olsfit
 
 print(maxr2)
-hopred = model_predict(ho, maxolsres)
+hopred = model_predict(ho, maxolsfit)
 np.savetxt('./predictions/smols-' + str(maxr2) + '.csv', hopred, fmt='%f')

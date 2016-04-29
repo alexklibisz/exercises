@@ -53,6 +53,7 @@ def prep_data(filename = 'data-raw.csv'):
     tv.drop('sample', 1, inplace=True)
     ho.drop('sample', 1, inplace=True)
 
+    # return traning/validation and hold out data
     return tv, ho
 
 def visualize(vy, vpred, type, r2, show):
