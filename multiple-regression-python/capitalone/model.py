@@ -53,7 +53,7 @@ theta = np.dot(xTxinvxT, ty)
 # use theta to predict TOT_DEP for the validation data
 vy = v['TOT_DEP'].as_matrix()
 vX = v.drop('TOT_DEP', 1).as_matrix()
-vpred = np.dot(vX, theta)
+vpred = np.round(np.dot(vX, theta))
 
 # plot stuff
 fig, ax = plt.subplots()
