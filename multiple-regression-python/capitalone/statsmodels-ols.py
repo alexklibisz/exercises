@@ -35,12 +35,12 @@ def model(tv, trainProportion = 0.8):
 
 def model_predict(ho, olsfit):
     hoX = ho.drop('TOT_DEP', 1).as_matrix()
-    return np.round(olsfit.predict(hoX))
+    return olsfit.predict(hoX)
 
 tv, ho = prep_data()
 
 maxr2 = -1 * sys.maxsize
-for i in range(1000):
+for i in range(10000):
     vy, vpred, olsfit = model(tv, 0.7)
     r2 = metrics.r2_score(vy, vpred)
     if r2 > maxr2:

@@ -39,11 +39,15 @@ def prep_data(filename = 'data-raw.csv'):
     data['INSTITUTION_SIZE'].replace('SMALL', 1, inplace=True)
     data['INSTITUTION_SIZE'].replace('LARGE', 2, inplace=True)
 
-    # recode data: OPEN_DT become timestamps
+    # recode data: OPEN_DT to timestamp and to day of year
     to_timestamp = lambda x: time.mktime(datetime.datetime.strptime(x, "%m/%d/%Y").timetuple())
-    data['OPEN_DT'] = data['OPEN_DT'].apply(to_timestamp)
+    to_yday = lambda x: datetime.datetime.strptime(x, "%m/%d/%Y").timetuple().tm_yday
+    data['OPEN_TIMESTAMP'] = data['OPEN_DT'].apply(to_timestamp)
+    data['OPEN_YDAY'] = data['OPEN_DT'].apply(to_yday)
+    data.drop('OPEN_DT', 1, inplace=True)
 
-    # recode data: replace all empty cells with 0's
+    # recode data: replace empty columns with 0's
+    # would probably be smarter to remove columns with all 0s
     data = data.replace(np.nan, 0)
 
     tv = data.query('sample=="Build"')
