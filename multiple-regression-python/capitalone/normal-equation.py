@@ -90,7 +90,7 @@ def visualize(vy, vpred, r2, show):
     ax.legend(['actual','predicted','actual', 'predicted'], loc='best')
     ax.set(ylim=(-1 * abs(vpred.min() * 1.5), vpred.max() * 1.5))
 
-    plt.savefig('./plots/' + str(r2) + '-' + str(math.floor(time.time())) + '.png')
+    plt.savefig('./plots/normal-equation/' + str(r2) + '-' + str(math.floor(time.time())) + '.png')
     if show:
         plt.show()
 
@@ -113,7 +113,7 @@ visualize(maxvy, maxvpred, maxr2, (len(sys.argv) > 1 and sys.argv[1] == '-s'))
 
 # Make and save predictions based on maxtheta
 hopred = model_predict(ho, maxtheta)
-np.savetxt('./predictions/' + str(maxr2) + '.csv', hopred, fmt='%f')
+np.savetxt('./predictions/normal-equation/' + str(maxr2) + '.csv', hopred, fmt='%f')
 
 # Print information
 print(' maxr2', maxr2)
