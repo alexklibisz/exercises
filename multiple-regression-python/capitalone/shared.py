@@ -7,6 +7,14 @@ import math
 import matplotlib.pyplot as plt
 import sys
 
+def calcmse(y, f):
+    return np.mean(((y - f) ** 2))
+
+# Find residual sum of squares.
+# Math according to: https://en.wikipedia.org/wiki/Residual_sum_of_squares#One_explanatory_variable
+def calcrss(y, f):
+    return np.sum((y - f)**2)
+
 # Find r-squared.
 # Math according to: https://en.wikipedia.org/wiki/Coefficient_of_determination#Definitions
 def calcr2(y, f):
