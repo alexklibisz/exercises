@@ -5,6 +5,7 @@ import datetime
 import warnings
 import math
 import matplotlib.pyplot as plt
+import sys
 
 warnings.filterwarnings('ignore')
 
@@ -65,4 +66,5 @@ ax.legend(['actual','predicted','actual', 'predicted'], loc='best')
 ax.set(ylim=(vpred.min() * 1.5, vpred.max() * 1.5))
 
 plt.savefig('./plots/' + str(math.floor(time.time())) + '.png')
-plt.show()
+if len(sys.argv) > 1 and sys.argv[1] == '-p':
+    plt.show()
