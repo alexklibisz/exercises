@@ -1,11 +1,6 @@
-import numpy as np
 import pandas as pd
-import time
-import datetime
-import warnings
-import math
-import matplotlib.pyplot as plt
-import sys
+import statsmodels.api as sm
+import numpy as np
 from shared import *
 
 warnings.filterwarnings('ignore')
@@ -22,17 +17,6 @@ def model(tv, trainProportion = 0.8):
     ty = t['TOT_DEP'].as_matrix()
     tX = t.drop('TOT_DEP', 1).as_matrix()
 
-    # run normal equation to find theta
-    # this is gross in python, much simpler in matlab/octave
-    xTx = np.dot(tX.transpose(), tX)
-    xTxinv = np.linalg.pinv(xTx)
-    xTxinvxT = np.dot(xTxinv, tX.transpose())
-    theta = np.dot(xTxinvxT, ty)
-
-    # use theta to predict TOT_DEP for the validation data
-    vy = v['TOT_DEP'].as_matrix()
-    vX = v.drop('TOT_DEP', 1).as_matrix()
-    vpred = np.round(np.dot(vX, theta))
 
     return vy, vpred, theta
 
@@ -42,10 +26,13 @@ def model_predict(ho, theta):
 
 # Run the model 200 times and keep track of the max r2, vy, vpred, and theta
 tv, ho = prep_data()
+model(tv, 0.75)
+quit()
+
 allr2 = []
 maxr2 = 0
-for _ in range(10):
-    vy, vpred, theta = model(tv, 0.77)
+for _ in range(250):
+    vy, vpred, theta = model(tv, 0.75)
     r2 = calcr2(vy, vpred)
     allr2.append(r2)
     if r2 > maxr2:
@@ -54,15 +41,14 @@ for _ in range(10):
         maxr2 = r2
         maxtheta = theta
 
+# Create and save plot
+visualize(maxvy, maxvpred, 'normal-equation', maxr2, (len(sys.argv) > 1 and sys.argv[1] == '-s'))
+
+# Make and save predictions based on maxtheta
+hopred = model_predict(ho, maxtheta)
+np.savetxt('./predictions/normal-equation-' + str(maxr2) + '.csv', hopred, fmt='%f')
+
 # Print information
 print(' maxr2', maxr2)
 print('meanr2', np.mean(np.array(allr2)))
-
-if maxr2 > 0.7:
-    # Create and save plot
-    visualize(maxvy, maxvpred, 'normal-equation', maxr2, (len(sys.argv) > 1 and sys.argv[1] == '-s'))
-
-    # Make and save predictions based on maxtheta
-    hopred = model_predict(ho, maxtheta)
-    np.savetxt('./predictions/normal-equation-' + str(maxr2) + '.csv', hopred, fmt='%f')
-    print(hopred)
+print(hopred)
