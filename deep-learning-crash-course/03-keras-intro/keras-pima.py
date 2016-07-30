@@ -2,6 +2,7 @@
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.callbacks import ModelCheckpoint
+from keras.layers import Dropout
 import numpy
 import argparse
 
@@ -33,7 +34,10 @@ model.add(Dense(12, input_dim=8, init='uniform', activation='relu'))
 # rectified linear unit activation
 model.add(Dense(8, init='uniform', activation='relu'))
 
-# Layer 3: dense layer with 1 output, uniform weight initialization,
+# Layer 3: dropout layer to prevent over-fitting
+model.add(Dropout(0.25))
+
+# Layer 4: dense layer with 1 output, uniform weight initialization,
 # sigmoid activation function
 model.add(Dense(1, init='uniform', activation='sigmoid'))
 
