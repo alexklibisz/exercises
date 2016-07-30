@@ -49,8 +49,13 @@ if args["weights"] is not None:
 else:
   print("Fitting and saving weights...")
   # Fit the model for 150 epochs in batches of 10
-  model.fit(features, labels, nb_epoch=150, batch_size=10, verbose=0)
-  model.save_weights("out.h5", overwrite=True)
+  fit = model.fit(features, labels, nb_epoch=150, batch_size=10, verbose=0)
+  model.save_weights("weights.h5", overwrite=True)
+  # Save history accuracy and loss to file
+  history = numpy.zeros((len(fit.history["acc"]), len(fit.history.keys())))
+  history[:,0] = fit.history["acc"]
+  history[:,1] = fit.history["loss"]
+  numpy.savetxt("history.csv", history, delimiter=",")
 
 # Evaluate the model
 print("Evaluating...")
