@@ -3,6 +3,7 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.callbacks import ModelCheckpoint
 from keras.layers import Dropout
+from keras.optimizers import SGD
 import numpy
 import argparse
 
@@ -43,9 +44,14 @@ model.add(Dense(1, init='uniform', activation='sigmoid'))
 
 # Compile the model
 print("Compilng model...")
+# Define the parameters for stochastic-gradient-descent, where
+# the learning rate will decay 0.0001 at each epoch
+sgd = SGD(lr=0.1, momentum=0.9, decay=0.0001, nesterov=False)
+
 # Compiled to minimize binary_crossentropy (logloss) using Adaptive Moment Estimation
-# and measuring accuracy
-model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+# or stochastic-gradient-descent and measuring accuracy
+# model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
 # Load weights if defined or fit the model
 if args["weights"] is not None:
