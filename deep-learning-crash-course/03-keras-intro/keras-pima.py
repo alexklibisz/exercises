@@ -46,3 +46,4 @@ scores = model.evaluate(features, labels, verbose=0)
 # Print results
 print('loss', str(scores[0]))
 print('accuracy', str(scores[1]))
+print(model.summary())
