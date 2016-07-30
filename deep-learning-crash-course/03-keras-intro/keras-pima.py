@@ -1,6 +1,7 @@
 
 from keras.models import Sequential
 from keras.layers import Dense
+from keras.callbacks import ModelCheckpoint
 import numpy
 import argparse
 
@@ -48,8 +49,10 @@ if args["weights"] is not None:
   model.load_weights(args["weights"])
 else:
   print("Fitting and saving weights...")
+  # Set checkpoint for saving the best weights
+  checkpt = ModelCheckpoint('weights.best.h5', monitor='acc', save_best_only=True, mode='auto')
   # Fit the model for 150 epochs in batches of 10
-  fit = model.fit(features, labels, nb_epoch=150, batch_size=10, verbose=0)
+  fit = model.fit(features, labels, nb_epoch=150, batch_size=10, verbose=0, callbacks=[checkpt])
   model.save_weights("weights.h5", overwrite=True)
   # Save history accuracy and loss to file
   history = numpy.zeros((len(fit.history["acc"]), len(fit.history.keys())))
