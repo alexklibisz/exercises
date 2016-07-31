@@ -1,6 +1,8 @@
-Based on exercises from the book Machine Learning Mastery with Python by Jason Brownlee
+Based on exercises from the book Machine Learning Mastery with Python by Jason Brownlee: https://machinelearningmastery.com/machine-learning-with-python/
 
-High-level information I found valuable in this text:
+I bought the text, including code, so I've git-ignored the code I write based on Brownlee's code. I'm not sure about how licensing works there, and most of my code is near-verbatim from his snippets.
+
+Chapter-by-chapter information I found valuable in this text:
 
 - Chapter 5: pandas summary(), hist(), and plot() functions
 - Chapter 6: correlation matrices, scatter plot matrices
