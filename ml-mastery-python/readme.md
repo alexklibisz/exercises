@@ -26,6 +26,14 @@ Chapter-by-chapter information I found valuable in this text:
   - Simple scikit-learn recipes for logistic regression, linear discriminant analysis, K-nearest neightbors, naive bayes, classification and regresion trees, support vector machines
 - Chapter 12: spot-checking regression algorithms
   - Simple scikit-learn recipes for Linear regression, ridge regression, LASSO linear regression, elastic net regression, K-Nearest neightbors, classification and regression trees, support vector machines
+- Chapter 13: Comparing ML algorithms
+  - A really, really easy way to get side-by-side box-plot comparisons of various algorithms' performance in < 30 lines of code. Very cool.
+- Chapter 14: Machine Learning Pipelines
+  - Normalizing or standardizing the test and training data together is invalid because the test data is influenced by the scale of the training data.
+  - feature extraction must be limited to using the data in the training subset.
+  - sklearn pipelines are a useful way to declaratively apply multiple steps to process and evaluate the dataset
+  - sklearn FeatureUnion allows you to apply multiple feature selection steps without data leakage (data leakage = using test data for feature selection)
+  - you can embed pipelines within pipelines - e.g. FeatureUnion is a pipeline embedded in the PipeLine that's passed to cross validation
 
 Areas where I need to study more on my own:
 
