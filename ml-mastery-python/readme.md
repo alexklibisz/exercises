@@ -34,7 +34,11 @@ Chapter-by-chapter information I found valuable in this text:
   - sklearn pipelines are a useful way to declaratively apply multiple steps to process and evaluate the dataset
   - sklearn FeatureUnion allows you to apply multiple feature selection steps without data leakage (data leakage = using test data for feature selection)
   - you can embed pipelines within pipelines - e.g. FeatureUnion is a pipeline embedded in the PipeLine that's passed to cross validation
-
+- Chapter 15: Ensemble techniques
+  - Bootstrap aggregation (Bagging): take multiple samples from training subset, train a model for each sample, final output is an average of outputs from all sub-models.
+I suppose "voting" systems fit under this.
+  - Random Forest and Extra Trees, though I'm not completely sure how they differ.
+  - Boosting algorithms: take a sequence of models, where each model should correct the previous model's errors.
 Areas where I need to study more on my own:
 
 - Extra trees and random trees classifiers - was shown very quickly in the text
@@ -45,3 +49,6 @@ Areas where I need to study more on my own:
 - Naive Bayes and Gaussian Naive Bayes
 - Support Vector Machines (review Coursera notes)
 - A review of all of the algorithms in chapters 11 and 12. I should probably implement them all myself at some point.
+- Classification and Regression Tree algorithms
+- Boost algorithms
+- What actual classification algorithms are the ensemble algorithms using under the hood.
