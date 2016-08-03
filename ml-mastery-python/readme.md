@@ -39,6 +39,11 @@ Chapter-by-chapter information I found valuable in this text:
 I suppose "voting" systems fit under this.
   - Random Forest and Extra Trees, though I'm not completely sure how they differ.
   - Boosting algorithms: take a sequence of models, where each model should correct the previous model's errors.
+- Chapter 16: Algorithm tuning
+  - See GridSearchCV and RandomizedSearchCV classes for hyperparameter tuning.
+- Chapter 17: Finalizing the model
+  - Use the `pickle` and `joblib` libraries to serialize and deserialize trained models. `joblib` provides some optimization for handling numpy arrays.
+
 Areas where I need to study more on my own:
 
 - Extra trees and random trees classifiers - was shown very quickly in the text
