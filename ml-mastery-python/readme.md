@@ -43,7 +43,7 @@ I suppose "voting" systems fit under this.
   - See GridSearchCV and RandomizedSearchCV classes for hyperparameter tuning.
 - Chapter 17: Finalizing the model
   - Use the `pickle` and `joblib` libraries to serialize and deserialize trained models. `joblib` provides some optimization for handling numpy arrays.
-
+- Chapter 19,20,21: Very thorough look at the Iris, Boston Housing, and Sonar Mines vs. Rocks datasets. Each took about two hours to go through thoroughly (read: no copy-pasting)
 Areas where I need to study more on my own:
 
 - Extra trees and random trees classifiers - was shown very quickly in the text
