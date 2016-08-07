@@ -170,6 +170,6 @@ print(classification_report(Yval, predictions))
 print("Making predictions for test (holdout) data with: %s" % (best['name']))
 _, Xtest = helpers.get_test_data()
 predictions = model.predict(Xtest)
-predfname = 'tmp-predictions.csv'
-print("Saving predictions to %s" % (predfname))
-np.savetxt(predfname, predictions, delimiter=',')
+submissionfname = 'tmp-submission.csv'
+print("Saving predictions to %s" % (submissionfname))
+helpers.create_submission(predictions, submissionfname=submissionfname)

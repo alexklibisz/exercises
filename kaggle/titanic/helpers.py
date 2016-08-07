@@ -62,3 +62,9 @@ def get_test_data(fname='data-test.csv', impute = True):
     Xtest = imp.fit_transform(Xtest)
 
     return df, Xtest
+
+def create_submission(predictions, datafname='data-test.csv', submissionfname='tmp-submission.csv'):
+
+    df = pandas.read_csv(datafname)
+    df['Survived'] = pandas.Series(predictions).astype('int')
+    df.to_csv(submissionfname, columns=['PassengerId', 'Survived'], index=False)
