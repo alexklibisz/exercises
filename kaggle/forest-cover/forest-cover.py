@@ -7,6 +7,12 @@ from sklearn import cross_validation
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier, ExtraTreesClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
 from sklearn.pipeline import Pipeline
 
 # Block parse script args
@@ -47,32 +53,34 @@ names = []
 results = []
 estimators = []
 scaler = ('Scaler', StandardScaler())
-ensembles = [
+models = [
+    ('LogisticRegression', LogisticRegression()),
+    ('LinearDiscriminantAnalysis', LinearDiscriminantAnalysis()),
+    ('KNeighborsClassifier', KNeighborsClassifier()),
+    ('DecisionTreeClassifier', DecisionTreeClassifier()),
+    ('GaussianNB', GaussianNB()),
+    ('SVC', SVC()),
     ('AdaBoost', AdaBoostClassifier()),
     ('GradientBoosting', GradientBoostingClassifier()),
     ('RandomForest', RandomForestClassifier()),
     ('ExtraTrees', ExtraTreesClassifier())
 ]
 pipelines = []
-for name, model in ensembles:
+for name, model in models:
     pipelines.append(('Scaled' + name, Pipeline([scaler, (name, model)])))
 
-for name, pipelines in pipelines:
-    print("Evaluating training with %s" % (name))
+for name, pipeline in pipelines:
     kfold = cross_validation.KFold(n=len(Xtrn),n_folds=10)
-    cvres = cross_validation.cross_val_score(pipelines,Xtrn,Ytrn,cv=kfold,scoring=scoring)
+    cvres = cross_validation.cross_val_score(pipeline,Xtrn,Ytrn,cv=kfold,scoring=scoring)
     results.append(cvres)
     names.append(name)
-    estimators.append(pipelines)
+    estimators.append(pipeline)
     print("%s: %f, %f" % (name, cvres.mean(), cvres.std()))
 
 # Block: Evaluate holdout data with each of the ensembles
 for name, estimator in zip(names, estimators):
-    print("Evaluating holdout with %s" % (name))
     estimator.fit(Xtrn,Ytrn)
     predictions = estimator.predict(Xtest)
-    print(Xtest.shape)
-    print(predictions.shape)
     fname = 'tmp-submission-' + name + '.csv'
     print("Saving predictions to %s" % (fname))
     helpers.create_submission(predictions, submissionfname=fname)
