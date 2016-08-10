@@ -2,9 +2,12 @@
 import pandas as pd
 import numpy as np
 import argparse
+import helpers
 from sklearn import cross_validation
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier, ExtraTreesClassifier
+from sklearn.pipeline import Pipeline
 
 # Block parse script args
 ap = argparse.ArgumentParser()
@@ -17,9 +20,9 @@ seed = args['seed']
 # Block: seed numpy random generator
 np.random.seed(seed)
 
-# Block: read in file
-fname = 'train.csv'
-df = pd.read_csv(fname)
+# Block: get data
+df, Xtrn, Xval, Ytrn, Yval = helpers.get_train_data(seed=seed)
+_, Xtest = helpers.get_test_data()
 
 # Block: some descriptive statistics
 # Correlation matrix, looks like the majority of variables are not significantly correlated.
@@ -38,56 +41,38 @@ if args['summary']:
     # Classification count - 2160 of each
     print(df.groupby('Cover_Type').size())
 
-# Block: collapse binary wilderness area and soil type columns into single columns
-# Get all the Wilderness_Area and Soil_Type columns
-cols = df.columns.values
-wcols = list(filter(lambda x: x.startswith('Wilderness_Area') , cols))
-scols = list(filter(lambda x: x.startswith('Soil_Type'), cols))
-# Initialize two new columns as all zeros
-df['Wilderness_Area'] = pd.Series(np.zeros((df.shape[0])))
-df['Soil_Type'] = pd.Series(np.zeros((df.shape[0])))
-# Loop through the columns, multiply each column's values by (i+1),
-# add it to the collapsed column.
-for i, col in enumerate(wcols):
-    vals = df[col].values * (i + 1)
-    df['Wilderness_Area'] += pd.Series(vals)
+# Block: Spot-checking ensemble methods
+scoring = 'accuracy'
+names = []
+results = []
+estimators = []
+scaler = ('Scaler', StandardScaler())
+ensembles = [
+    ('AdaBoost', AdaBoostClassifier()),
+    ('GradientBoosting', GradientBoostingClassifier()),
+    ('RandomForest', RandomForestClassifier()),
+    ('ExtraTrees', ExtraTreesClassifier())
+]
+pipelines = []
+for name, model in ensembles:
+    pipelines.append(('Scaled' + name, Pipeline([scaler, (name, model)])))
 
-for i, col in enumerate(scols):
-    vals = df[col] * (i + 1)
-    df['Soil_Type'] += pd.Series(vals)
+for name, pipelines in pipelines:
+    print("Evaluating training with %s" % (name))
+    kfold = cross_validation.KFold(n=len(Xtrn),n_folds=10)
+    cvres = cross_validation.cross_val_score(pipelines,Xtrn,Ytrn,cv=kfold,scoring=scoring)
+    results.append(cvres)
+    names.append(name)
+    estimators.append(pipelines)
+    print("%s: %f, %f" % (name, cvres.mean(), cvres.std()))
 
-# Drop the binary columns
-df.drop(wcols + scols, axis=1, inplace=True)
-df.to_csv('test.csv', index=False)
-
-
-# Block: Split data for testing and validation
-Y = df['Cover_Type'].values
-X = df.drop(['Cover_Type'], axis = 1).values
-Xtrn, Xval, Ytrn, Yval = cross_validation.train_test_split(X, Y, test_size=0.3)
-
-#
-# # Block: Spot-checking algorithms
-# scoring = 'accuracy'
-
-
-
-
-# # Block: Spot-checking ensemble methods
-# scoring = 'accuracy'
-# names = []
-# results = []
-# estimators = []
-# ensembles = [
-#     #('Adaboost', AdaBoostClassifier()),
-#     ('Gradboost', GradientBoostingClassifier()),
-#     #('Randfor', RandomForestClassifier()),
-#     #('Extratree', ExtraTreesClassifier())
-# ]
-# for name, model in ensembles:
-#     kfold = cross_validation.KFold(n=len(Xtrn),n_folds=10)
-#     cvres = cross_validation.cross_val_score(model,Xtrn,Ytrn,cv=kfold,scoring=scoring)
-#     results.append(cvres)
-#     names.append(name)
-#     estimators.append(model)
-#     print("%s: %f, %f" % (name, cvres.mean(), cvres.std()))
+# Block: Evaluate holdout data with each of the ensembles
+for name, estimator in zip(names, estimators):
+    print("Evaluating holdout with %s" % (name))
+    estimator.fit(Xtrn,Ytrn)
+    predictions = estimator.predict(Xtest)
+    print(Xtest.shape)
+    print(predictions.shape)
+    fname = 'tmp-submission-' + name + '.csv'
+    print("Saving predictions to %s" % (fname))
+    helpers.create_submission(predictions, submissionfname=fname)
