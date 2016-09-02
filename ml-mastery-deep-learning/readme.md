@@ -14,3 +14,7 @@ Based on exercises from the book Deep Learning with Python by Jason Brownlee: ht
   - use the `validation_split` argument for `model.fit()` to create an automatic validation set.
   - use the `validation_data` argument for `model.fit()` to specify which data gets split.
   - use the sklearn `StratifiedKFold` to create folds for cross-validation, then loop over the folds to evaluate the algorithm.
+
+- CHapter 9
+  - use the `keras.wrappers.scikit_learn` package for functions to interop keras with sklearn.
+  - use sklearn's `GridSearchCV` to test hyperparameters on a keras model.
