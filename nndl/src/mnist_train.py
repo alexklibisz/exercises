@@ -41,8 +41,8 @@ validate = test[8000:]
 test = test[:8000]
 
 # Train, save, delete the network.
-net = Network.Network([784, 20, 10])
-net.SGD(training, 20, 10, 3.0, test_data=test)
+net = Network.Network([784, 20, 20, 10])
+net.SGD(training, 30, 10, 3.0, test_data=test)
 net.save(fname='mnist.out')
 del net
 

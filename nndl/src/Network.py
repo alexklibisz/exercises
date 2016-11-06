@@ -112,39 +112,45 @@ class Network(object):
         return sum(int(x == y) for (x,y) in results)
 
     def back_prop(self, x, y):
-        """Return a tuple ``(nabla_b, nabla_w)`` representing the
-        gradient for the cost function C_x.  ``nabla_b`` and
-        ``nabla_w`` are layer-by-layer lists of numpy arrays, similar
-        to ``self.biases`` and ``self.weights``."""
-        nabla_b = [np.zeros(b.shape) for b in self.biases]
-        nabla_w = [np.zeros(w.shape) for w in self.weights]
-        # feedforward
-        activation = x
-        activations = [x] # list to store all the activations, layer by layer
-        zs = [] # list to store all the z vectors, layer by layer
+        '''Execute back propogation for a single example input x
+        and its corresponding output y. Used in the update_by_mini_batch
+        function for applying changes to weights and biases.
+        Return a tuple of the gradients (grad_b, grad_w) where grad_b and
+        grad_w are layer-by-layer lists of numpy arrays.
+        grad_w[l][j][k] is the gradient for the weight from neuron k in
+        layer l-1 to neuron j in layer l.
+        grad_b[l][j] is the bias for neuron j in layer l.'''
+
+        # Both gradients initialized as zeros.
+        grad_b = [np.zeros(b.shape) for b in self.biases]
+        grad_w = [np.zeros(w.shape) for w in self.weights]
+
+        # Duplicate the feed_forward logic.
+        # Keep track of a and z for later computing deltas.
+        a = x
+        A = [a]
+        Z = []
         for b, w in zip(self.biases, self.weights):
-            z = np.dot(w, activation)+b
-            zs.append(z)
-            activation = sigmoid(z)
-            activations.append(activation)
-        # backward pass
-        delta = self.cost_derivative(activations[-1], y) * \
-            sigmoid_prime(zs[-1])
-        nabla_b[-1] = delta
-        nabla_w[-1] = np.dot(delta, activations[-2].transpose())
-        # Note that the variable l in the loop below is used a little
-        # differently to the notation in Chapter 2 of the book.  Here,
-        # l = 1 means the last layer of neurons, l = 2 is the
-        # second-last layer, and so on.  It's a renumbering of the
-        # scheme in the book, used here to take advantage of the fact
-        # that Python can use negative indices in lists.
+            z = np.dot(w, a) + b       # The inner term of the activation, z.
+            Z.append(z)
+            a = sigmoid(z)
+            A.append(a)
+
+        # Backward pass.
+        # Compute the output error first; see eq. BP1 and BP1a
+        delta = self.cost_derivative(A[-1], y) * sigmoid_prime(Z[-1])
+        grad_b[-1] = delta                            # eq. BP3
+        grad_w[-1] = np.dot(delta, A[-2].transpose()) # eq. BP4
+
+        # Use python negative indices to loop backward through layers.
+        # TODO: find a clean way to do this without negative indexing.
         for l in range(2, self.num_layers):
-            z = zs[-l]
-            sp = sigmoid_prime(z)
-            delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
-            nabla_b[-l] = delta
-            nabla_w[-l] = np.dot(delta, activations[-l-1].transpose())
-        return (nabla_b, nabla_w)
+            sp = sigmoid_prime(Z[-l])
+            delta = np.dot(self.weights[-l + 1].transpose(), delta) * sp # eq. BP2
+            grad_b[-l] = delta                                           # eq. BP3
+            grad_w[-l] = np.dot(delta, A[-l-1].transpose())              # eq. BP4
+
+        return (grad_b,grad_w)
 
     def cost_derivative(self, output_activations, y):
         return (output_activations - y)
