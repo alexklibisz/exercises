@@ -13,5 +13,8 @@ In general, I just adapted it to work in python 3 and used the keras mnist data 
     - Early stopping
     - L2 regularization
     - Dropout regularlization
+    - Momentum-based gradient descent
+    - Try other optimization methods (scipy has some alternatives built-in for quick evaluations.)
+    - tanh and rectified-linear activation neurons
 - Create a Jupyter notebook demonstrating the performance differences in the first-pass and second-pass networks.
 - Try an ensemble method with one network trained per digit.
