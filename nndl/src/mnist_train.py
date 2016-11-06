@@ -36,7 +36,8 @@ for i, l in enumerate(y_test): labels_encoded_test[i][l] = 1
 # training is a list of (image, hot-encoded label vector) tuples.
 # test is a list of (image, label) tuples.
 training = [(x,y) for x,y in zip(images_train, labels_encoded_train)]
-test = [(x,y) for x,y in zip(images_test, y_test)]
+test =[(x,y) for x,y in zip(images_train, labels_encoded_train)]
+# test = [(x,y) for x,y in zip(images_test, y_test)]
 validate = test[8000:]
 test = test[:8000]
 

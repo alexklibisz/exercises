@@ -1,6 +1,7 @@
 import pickle
 import random
 import numpy as np
+import math
 
 # Static Functions
 def sigmoid(z):
@@ -9,8 +10,26 @@ def sigmoid(z):
 
 def sigmoid_prime(z):
     '''Derivative of the sigmoid activation function.
-    Used in back prop.'''
+    Used in back prop to compute the output and layer errors.'''
     return sigmoid(z) * (1 - sigmoid(z))
+
+def quadratic_cost(examples, outputs):
+    '''Computes quadratic cost (eq. 6) for the outputs relative
+    the example (x,y) pairs. Assumes that outputs is a list of
+    column vectors representing the output activations for
+    the given examples.'''
+    n = len(examples)
+    error_sum = 0
+    for (o, (x,y)) in zip(outputs, examples):
+        error_sum += math.pow(np.sum(y - o), 2)
+    return (1 / (2*n)) * error_sum
+
+def cost_prime(output_activations, y):
+    '''Derivative of the quadratic cost function.
+    Used in back prop to compute the output error.
+    Assumes output_activations and y are equal sized
+    column vectors.'''
+    return (output_activations - y)
 
 class Network(object):
 
@@ -63,8 +82,9 @@ class Network(object):
 
             # Evaluate on test_data if given.
             if test_data:
-                print("SGD Epoch %d: %d / %d" %
-                (e, self.evaluate(test_data), len(test_data)))
+                correct, cost = self.evaluate(test_data)
+                print("SGD Epoch %2d: %5d/%5d, cost = %.4lf" %
+                (e, correct, len(test_data), cost))
             else:
                 print("SGD Epoch %d complete" % (e))
 
@@ -97,19 +117,22 @@ class Network(object):
     def evaluate(self, test_data):
         '''Evaluate using the member variable biases, weights,
         and the given test_data. test_data should be a list of
-        tuples (x,y). Returns the number of accurate classifications.'''
+        tuples (x,y). Returns the number of accurate classifications.
+        and the overall cost.'''
 
-        # Results will be tuples indicating the index of the
-        # maximum activation from the feed_forward and the index
-        # of the 1 in the known labels list y.
-        results = [(np.argmax(self.feed_forward(x)),y)
-                    for (x,y) in test_data]
+        # Compute the outputs as a forward pass once.
+        outputs = [self.feed_forward(x) for (x,y) in test_data]
 
-        # The number of correct matches is the number of tuples
-        # containing the same index (i.e. feed_forward assigned
-        # the highest activation at the index corresponding to
-        # the correct output.
-        return sum(int(x == y) for (x,y) in results)
+        # It's a match if the index of the greatest activation
+        # in the output matches the index of the greatest
+        # value (the digit) in the example label.
+        num_matches = 0
+        for (o,(x,y)) in zip(outputs, test_data):
+            num_matches += int(np.argmax(o) == np.argmax(y))
+
+        cost = quadratic_cost(test_data, outputs)
+
+        return num_matches, cost
 
     def back_prop(self, x, y):
         '''Execute back propogation for a single example input x
@@ -138,7 +161,7 @@ class Network(object):
 
         # Backward pass.
         # Compute the output error first; see eq. BP1 and BP1a
-        delta = self.cost_derivative(A[-1], y) * sigmoid_prime(Z[-1])
+        delta = cost_prime(A[-1], y) * sigmoid_prime(Z[-1])
         grad_b[-1] = delta                            # eq. BP3
         grad_w[-1] = np.dot(delta, A[-2].transpose()) # eq. BP4
 
@@ -151,9 +174,6 @@ class Network(object):
             grad_w[-l] = np.dot(delta, A[-l-1].transpose())              # eq. BP4
 
         return (grad_b,grad_w)
-
-    def cost_derivative(self, output_activations, y):
-        return (output_activations - y)
 
     def save(self, fname):
         serialized = dict()
