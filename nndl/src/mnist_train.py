@@ -36,13 +36,13 @@ for i, l in enumerate(y_test): labels_encoded_test[i][l] = 1
 # training is a list of (image, hot-encoded label vector) tuples.
 # test is a list of (image, label) tuples.
 training = [(x,y) for x,y in zip(images_train, labels_encoded_train)]
-test =[(x,y) for x,y in zip(images_train, labels_encoded_train)]
+test =[(x,y) for x,y in zip(images_test, labels_encoded_test)]
 # test = [(x,y) for x,y in zip(images_test, y_test)]
 validate = test[8000:]
 test = test[:8000]
 
 # Train, save, delete the network.
-net = Network.Network([784, 20, 20, 10])
+net = Network.Network([784, 30, 10])
 net.SGD(training, 30, 10, 3.0, test_data=test)
 net.save(fname='mnist.out')
 del net
@@ -50,4 +50,6 @@ del net
 # Load the network back in and run validation.
 net = Network.Network()
 net.load(fname='mnist.out')
-print('Validation: %d / %d' % (net.evaluate(validate), len(validate)))
+num_matches, cost = net.evaluate(validate)
+print('Validation: %d / %d, %.4lf, cost = %.4lf' %
+    (num_matches, len(validate), num_matches / len(validate), cost))
