@@ -35,20 +35,18 @@ class MyLinearRegression():
 			# Hypothesis equals features (x) times theta.
 			h = np.dot(X, self._theta)
 
-			# Error equals hypothesis minus true results (y).
-			error = h - y
-
 			# Update status while iterating.
 			if verbose and i % 100 is 0:
-				print('%04d MAE = %.3f' % (i, MAE(h,y)))
+				print('%04d MAE = %.3f' % (i, MSE(h,y)))
 
 			# Compute the gradient with size m x 1.
-			# This is the derivative of $\frac{1}{2m} \sum(h_\theta(x_i) - y_i)^2$
+			# This is based on the derivative of the MSE cost function.
 			# Derivation worked out: http://mccormickml.com/2014/03/04/gradient-descent-derivation/
-			grad = (1 / m) * np.dot(XT, error)
 
-			# Update the weights based on gradient.
-			self._theta = self._theta - (alpha * grad)
+			errors = h - y 							# Hypothesis minus true results.
+			slope = (2/m) * np.dot(XT, errors)		# Slope tells us which direction to go next.
+			change = alpha * slope 					# Move slope iterations of alpha in that direction.
+			self._theta = self._theta - change		# Make the update
 
 		return self._theta
 
