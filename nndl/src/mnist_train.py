@@ -3,20 +3,6 @@ import numpy as np
 import os
 import Network
 
-# # Fetch from sklearn (mldata.org)
-# # For some reason, this performed drastically worse than
-# # the example from neuralnetworksanddeeplearning.com.
-# from sklearn.datasets import fetch_mldata
-# mnist = fetch_mldata('MNIST original')
-# mnist.target = [int(t) for t in mnist.target]
-# images = [x.reshape(784,1) / 255.0 for x in mnist.data]
-# labels = [np.zeros((10,1)) for x in mnist.target]
-# for i, t in enumerate(mnist.target): labels[i][t] = 1
-# pairs = [(x,y) for x,y in zip(images,labels)]
-# training = pairs[0:50000]
-# test = [(x,y) for x,y in zip(images[50000:], mnist.target[50000:])]
-# validate = pairs[60000:70000]
-
 # Use keras dataset instead.
 # conda install keras
 (X_train, y_train), (X_test, y_test) = mnist.load_data()
