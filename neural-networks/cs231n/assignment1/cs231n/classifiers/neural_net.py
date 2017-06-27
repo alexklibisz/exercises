@@ -149,7 +149,8 @@ class TwoLayerNet(object):
         # (If we were to use a different cost or activation on the last layer,
         # the full form would be necessary.) For the full form, the following would be useful:
         # Cross-entropy cost derivative: https://stats.stackexchange.com/questions/154879
-        # Softmax derivative: http://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/
+        # Softmax derivative:
+        # http://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/
         d2 = a2
         d2[range(N), y] -= 1
 
@@ -242,7 +243,7 @@ class TwoLayerNet(object):
             #                             END OF YOUR CODE                          #
             #########################################################################
 
-            if verbose and it % 100 == 0:
+            if verbose and it % 1000 == 0:
                 print('iteration %d / %d: loss %f' % (it, num_iters, loss))
 
             # Every epoch, check train and val accuracy and decay learning rate.
