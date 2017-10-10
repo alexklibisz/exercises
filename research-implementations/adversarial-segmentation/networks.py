@@ -12,13 +12,12 @@ def set_trainable(net, val):
         l.trainable = val
 
 
-def UNet(io_shape, nb_classes, output_name='seg'):
+def UNet(io_shape, output_name='seg'):
 
     def conv_layer(nb_filters, x):
         x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_normal')(x)
         x = BatchNormalization(axis=-1)(x)
         x = Activation('relu')(x)
-        # x = Dropout(0.1)(x)
         return x
 
     nfb = 32
@@ -66,8 +65,8 @@ def UNet(io_shape, nb_classes, output_name='seg'):
     x = concatenate([x, dc_0_out], axis=-1)
     x = conv_layer(nfb, x)
     x = conv_layer(nfb, x)
-    x = Conv2D(nb_classes, 1)(x)
-    x = Activation('softmax', name=output_name)(x)
+    x = Conv2D(1, 1)(x)
+    x = Activation('sigmoid', name=output_name)(x)
 
     return Model(inputs=inputs, outputs=x)
 

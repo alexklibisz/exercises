@@ -16,8 +16,8 @@ np.random.seed(865)
 
 
 def sampler(imgs, msks, input_shape, batch):
-    """Generator that yields training samples by randomly sampling windows from
-    given data. Masks get one-hot encoded."""
+    """Generator that yields training samples randomly sampled from given data
+    with simple augmentations."""
     N, H, W = imgs.shape[:-1]
     h, w = input_shape[:-1]
     ii = np.arange(N)
@@ -32,11 +32,9 @@ def sampler(imgs, msks, input_shape, batch):
         y0 = np.random.randint(0, H - h)
         x0 = np.random.randint(0, W - w)
         imgs_batch = imgs[ii_, y0:y0 + h, x0:x0 + h, ...]
-        msks_batch = np.zeros((*imgs_batch.shape[:-1], 2))
-        msks_batch[:, :, :, 1:] = msks[ii_, y0:y0 + h, x0:x0 + w, ...]
-        msks_batch[:, :, :, :1] = 1 - msks[ii_, y0:y0 + h, x0:x0 + w, ...]
-        for i in range(batch):
-            t = np.random.choice(transforms)
+        msks_batch = msks[ii_, y0:y0 + h, x0:x0 + h, ...]
+        tt = np.random.choice(transforms, batch)
+        for i, t in enumerate(tt):
             imgs_batch[i] = t(imgs_batch[i])
             msks_batch[i] = t(msks_batch[i])
         yield imgs_batch, msks_batch
@@ -203,9 +201,7 @@ if __name__ == "__main__":
         data = (imgs_trn, msks_trn, imgs_val, msks_val)
 
         # Network and training parameters.
-        nb_classes_seg = len(np.unique(msks_trn))   # Number of segmentation labels.
-        nb_classes_adv = 2                          # Real or Fake segmentation mask.
-        input_shape = (256, 256, 1)                 # Sample shape.
+        input_shape = (256, 256, 1)
         epochs = 20
         steps = imgs_trn.shape[0]
         batch = 4
@@ -214,7 +210,7 @@ if __name__ == "__main__":
         alpha = 1.
 
         # Define networks, sample generators, callbacks.
-        net_seg = UNet(input_shape, nb_classes_seg)
+        net_seg = UNet(input_shape)
 
         if args['adversarial']:
             net_adv = ConvNetClassifier(net_seg.output_shape[1:])
@@ -225,8 +221,3 @@ if __name__ == "__main__":
     if args['submit']:
 
         pass
-
-    import pdb
-    pdb.set_trace()
-
-    # Load data.
