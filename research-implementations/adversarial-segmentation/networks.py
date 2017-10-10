@@ -12,6 +12,11 @@ def set_trainable(net, val):
         l.trainable = val
 
 
+def get_trainable_count(net):
+    """https://stackoverflow.com/questions/45046525"""
+    return sum([K.count_params(p) for p in set(net.trainable_weights)])
+
+
 def UNet(io_shape, output_name='seg'):
 
     def conv_layer(nb_filters, x):
@@ -72,10 +77,11 @@ def UNet(io_shape, output_name='seg'):
 
 
 def ConvNetClassifier(input_shape, output_name='adv'):
-    """GAN-specific tricks https://github.com/soumith/ganhacks"""
+    """Binary real/fake classifier. Basically just the downward pass of UNet
+    with a logistic regression classifier replacing the upward pass."""
 
     def conv_layer(nb_filters, x):
-        x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_normal')(x)
+        x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_uniform')(x)
         return Activation('relu')(x)
 
     nfb = 32
@@ -101,35 +107,6 @@ def ConvNetClassifier(input_shape, output_name='adv'):
     x = conv_layer(nfb * 16, x)
 
     x = Flatten()(x)
-    x = Dense(2)(x)
-    x = Activation('softmax', name=output_name)(x)
+    x = Dense(1, activity_regularizer=l2(0.001))(x)
+    x = Activation('sigmoid', name=output_name)(x)
     return Model(inputs=inputs, outputs=x)
-
-
-# def ConvNetClassifier(input_shape, output_name='adv'):
-#     """GAN-specific tricks https://github.com/soumith/ganhacks"""
-#
-#     kreg = l2(0.01)
-#     x = inputs = Input(input_shape)
-#
-#     x = Conv2D(64, 3, strides=1, padding='same', kernel_regularizer=kreg)(x)
-#     x = Activation('relu')(x)
-#     x = MaxPooling2D()(x)
-#
-#     x = Conv2D(128, 3, strides=1, padding='same', kernel_regularizer=kreg)(x)
-#     x = Activation('relu')(x)
-#     x = MaxPooling2D()(x)
-#
-#     x = Conv2D(256, 3, strides=1, padding='same', kernel_regularizer=kreg)(x)
-#     x = Activation('relu')(x)
-#     x = MaxPooling2D()(x)
-#
-#     x = Conv2D(512, 3, strides=1, padding='same', kernel_regularizer=kreg)(x)
-#     x = Activation('relu')(x)
-#     x = MaxPooling2D()(x)
-#
-#     x = Flatten()(x)
-#     x = Dense(2)(x)
-#     x = Activation('softmax', name=output_name)(x)
-#
-#     return Model(inputs=inputs, outputs=x)
