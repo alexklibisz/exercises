@@ -4,45 +4,67 @@ import numpy as np
 import pdb
 import tifffile as tiff
 
+from keras.optimizers import RMSprop
+from keras.callbacks import ModelCheckpoint, CSVLogger
+from keras.losses import binary_crossentropy
+
 import sys
 sys.path.append('.')
-from networks import UNet, ConvNetClassifier
+from networks import UNet, ConvNetClassifier, set_trainable
+
+np.random.seed(865)
 
 
-def sampler(imgs, msks, input_shape, steps, batch):
+def sampler(imgs, msks, input_shape, batch):
     """Generator that yields training samples by randomly sampling windows from
     given data. Masks get one-hot encoded."""
-    ii = np.arange(imgs.shape[0])
     N, H, W = imgs.shape[:-1]
     h, w = input_shape[:-1]
+    ii = np.arange(N)
+    transforms = [
+        lambda x: x,
+        lambda x: np.rot90(x, 1, (0, 1)),
+        lambda x: np.rot90(x, 2, (0, 1)),
+        lambda x: np.rot90(x, 3, (0, 1)),
+    ]
     while True:
-        for step in range(steps):
-            ii_ = np.random.choice(ii, batch, replace=(N <= batch))
-            y0 = np.random.randint(0, H - h)
-            x0 = np.random.randint(0, W - w)
-            imgs_batch = imgs[ii_, y0:y0 + h, x0:x0 + h, ...]
-            msks_batch = np.zeros((*imgs_batch.shape[:-1], 2))
-            msks_batch[:, :, :, 1:] = msks[ii_, y0:y0 + h, x0:x0 + w, ...]
-            msks_batch[:, :, :, :1] = 1 - msks[ii_, y0:y0 + h, x0:x0 + w, ...]
-            yield imgs_batch, msks_batch
+        ii_ = np.random.choice(ii, batch, replace=(N <= batch))
+        y0 = np.random.randint(0, H - h)
+        x0 = np.random.randint(0, W - w)
+        imgs_batch = imgs[ii_, y0:y0 + h, x0:x0 + h, ...]
+        msks_batch = np.zeros((*imgs_batch.shape[:-1], 2))
+        msks_batch[:, :, :, 1:] = msks[ii_, y0:y0 + h, x0:x0 + w, ...]
+        msks_batch[:, :, :, :1] = 1 - msks[ii_, y0:y0 + h, x0:x0 + w, ...]
+        for i in range(batch):
+            t = np.random.choice(transforms)
+            imgs_batch[i] = t(imgs_batch[i])
+            msks_batch[i] = t(msks_batch[i])
+        yield imgs_batch, msks_batch
 
 
-def train_standard(net_seg, gen_trn, gen_val, cb):
+def train_standard(net_seg, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_val, input_shape, epochs, batch):
+    """Builds and trains the segmentation network by itself."""
 
-    return
+    # Define sample generators. Generate a single validation set.
+    gen_trn = sampler(imgs_trn, msks_trn, input_shape, batch)
+    gen_val = sampler(imgs_val, msks_val, input_shape, steps_val)
+    x_val, y_val = next(gen_val)
+
+    cb = [
+        ModelCheckpoint('checkpoints/std_net_seg_{val_loss:.2f}.hdf5',
+                        monitor='val_loss', save_best_only=1, verbose=1, mode='min'),
+        CSVLogger('checkpoints/std_history.csv')
+    ]
+
+    net_seg.compile(optimizer=RMSprop(0.001, decay=1e-3), loss=binary_crossentropy)
+    net_seg.fit_generator(gen_trn, epochs=epochs, steps_per_epoch=steps_trn,
+                          validation_data=(x_val, y_val), callbacks=cb)
 
 
-def set_trainable(net, val):
-    for l in net.layers:
-        l.trainable = val
-
-
-def train_adversarial(imgs_trn, msks_trn, imgs_val, msks_val, net_seg, net_adv, input_shape, cb, epochs, batch, alpha):
+def train_adversarial(imgs_trn, msks_trn, imgs_val, msks_val, net_seg, net_adv, input_shape, epochs, batch, alpha):
     """Builds and trains the segmentation network and adversarial classifier."""
 
     from keras.models import Model
-    from keras.optimizers import Adam
-    from keras.losses import binary_crossentropy
     from keras import backend as K
 
     # Assemble and compile a network that combines the segmentation and adversarial
@@ -77,17 +99,19 @@ def train_adversarial(imgs_trn, msks_trn, imgs_val, msks_val, net_seg, net_adv, 
     net_seg.fit_generator(gen_trn, epochs=10, steps_per_epoch=steps_trn,
                           validation_data=gen_val, validation_steps=steps_val)
 
-    N = 2000
-    X = np.zeros((N, *input_shape[:-1], 2))
-    Y = np.zeros((N, 2))
+    N = 10000
+    X = np.zeros((N, *input_shape[:-1], 2), dtype=np.float32)
+    Y = np.zeros((N, 2), dtype=np.uint8)
     normal = np.random.normal
     for i in range(0, N // 2, 2 * batch):
         imgs_batch, msks_batch_real = next(gen_trn)
-        msks_batch_fake = net_seg.predict(imgs_batch).round()
+        msks_batch_fake = net_seg.predict(imgs_batch)
         noise = normal(0, 0.05, imgs_batch.shape)
         X[i:i + batch] = np.clip(msks_batch_real, 0.2, 0.8) + noise
+        # X[i:i + batch] = msks_batch_real
         Y[i:i + batch] = target_real
-        X[i + batch:i + 2 * batch] = np.clip(msks_batch_fake, 0.2, 0.8) + noise
+        X[i + batch:i + 2 * batch] = np.clip(msks_batch_fake.round(), 0.2, 0.8) + noise
+        # X[i + batch:i + 2 * batch] = msks_batch_fake
         Y[i + batch:i + 2 * batch] = target_fake
 
     fig, _ = plt.subplots(2, 10, figsize=(20, 5))
@@ -171,28 +195,32 @@ if __name__ == "__main__":
         # Important to remember that the tiffs have range [0, 255].
         imgs = tiff.imread(trn_imgs_path)[:, :, :, np.newaxis] / 255.
         msks = tiff.imread(trn_msks_path)[:, :, :, np.newaxis] / 255.
-        imgs_trn, msks_trn = imgs[:15, ...], msks[:15, ...]
-        imgs_val, msks_val = imgs[15:, ...], msks[15:, ...]
+        imgs -= np.mean(imgs)
+        imgs /= np.std(imgs)
+
+        imgs_trn, msks_trn = imgs[:20, ...], msks[:20, ...]
+        imgs_val, msks_val = imgs[20:, ...], msks[20:, ...]
         data = (imgs_trn, msks_trn, imgs_val, msks_val)
 
         # Network and training parameters.
         nb_classes_seg = len(np.unique(msks_trn))   # Number of segmentation labels.
         nb_classes_adv = 2                          # Real or Fake segmentation mask.
-        input_shape = (128, 128, 1)                 # Sample shape.
+        input_shape = (256, 256, 1)                 # Sample shape.
         epochs = 20
         steps = imgs_trn.shape[0]
-        batch = 10
+        batch = 4
+        steps_trn = int(np.prod(imgs_trn.shape[:-1]) / np.prod((batch, *input_shape))) * 2
+        steps_val = steps_trn
         alpha = 1.
 
         # Define networks, sample generators, callbacks.
         net_seg = UNet(input_shape, nb_classes_seg)
-        cb = []
 
         if args['adversarial']:
             net_adv = ConvNetClassifier(net_seg.output_shape[1:])
-            train_adversarial(*data, net_seg, net_adv, input_shape, cb, epochs, batch, alpha)
+            train_adversarial(net_seg, net_adv, *data, steps_trn, steps_val, input_shape, epochs, batch, alpha)
         else:
-            train_standard(*data, net_seg, input_shape, cb, epochs, batch, alpha)
+            train_standard(net_seg, *data, steps_trn, steps_val, input_shape, epochs, batch)
 
     if args['submit']:
 

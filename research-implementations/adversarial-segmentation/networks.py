@@ -7,15 +7,21 @@ from keras.models import Model
 from keras import backend as K
 
 
+def set_trainable(net, val):
+    for l in net.layers:
+        l.trainable = val
+
+
 def UNet(io_shape, nb_classes, output_name='seg'):
 
     def conv_layer(nb_filters, x):
         x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_normal')(x)
         x = BatchNormalization(axis=-1)(x)
-        return Activation('relu')(x)
+        x = Activation('relu')(x)
+        # x = Dropout(0.1)(x)
+        return x
 
     nfb = 32
-    drp = 0.1
 
     x = inputs = Input(io_shape)
     x = conv_layer(nfb, x)
@@ -25,44 +31,37 @@ def UNet(io_shape, nb_classes, output_name='seg'):
     x = MaxPooling2D(2, strides=2)(x)
     x = conv_layer(nfb * 2, x)
     x = conv_layer(nfb * 2, x)
-    x = Dropout(drp)(x)
     dc_1_out = x
 
     x = MaxPooling2D(2, strides=2)(x)
     x = conv_layer(nfb * 4, x)
     x = conv_layer(nfb * 4, x)
-    x = Dropout(drp * 2)(x)
     dc_2_out = x
 
     x = MaxPooling2D(2, strides=2)(x)
     x = conv_layer(nfb * 8, x)
     x = conv_layer(nfb * 8, x)
-    x = Dropout(drp * 2)(x)
     dc_3_out = x
 
     x = MaxPooling2D(2, strides=2)(x)
     x = conv_layer(nfb * 16, x)
     x = conv_layer(nfb * 16, x)
     x = UpSampling2D()(x)
-    x = Dropout(drp * 2)(x)
 
     x = concatenate([x, dc_3_out], axis=-1)
     x = conv_layer(nfb * 8, x)
     x = conv_layer(nfb * 8, x)
     x = UpSampling2D()(x)
-    x = Dropout(drp * 2)(x)
 
     x = concatenate([x, dc_2_out], axis=-1)
     x = conv_layer(nfb * 4, x)
     x = conv_layer(nfb * 4, x)
     x = UpSampling2D()(x)
-    x = Dropout(drp * 2)(x)
 
     x = concatenate([x, dc_1_out], axis=-1)
     x = conv_layer(nfb * 2, x)
     x = conv_layer(nfb * 2, x)
     x = UpSampling2D()(x)
-    x = Dropout(drp)(x)
 
     x = concatenate([x, dc_0_out], axis=-1)
     x = conv_layer(nfb, x)
