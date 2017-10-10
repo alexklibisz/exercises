@@ -76,13 +76,13 @@ def UNet(io_shape, output_name='seg'):
     return Model(inputs=inputs, outputs=x)
 
 
-def ConvNetClassifier(input_shape, output_name='adv'):
+def ConvNetClassifier(input_shape):
     """Binary real/fake classifier. Basically just the downward pass of UNet
     with a logistic regression classifier replacing the upward pass."""
 
     def conv_layer(nb_filters, x):
-        x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_uniform')(x)
-        return Activation('relu')(x)
+        x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_normal')(x)
+        return LeakyReLU(0.2)(x)
 
     nfb = 32
 
@@ -107,6 +107,7 @@ def ConvNetClassifier(input_shape, output_name='adv'):
     x = conv_layer(nfb * 16, x)
 
     x = Flatten()(x)
-    x = Dense(1, activity_regularizer=l2(0.001))(x)
-    x = Activation('sigmoid', name=output_name)(x)
+    x = Dense(1, kernel_initializer='he_normal')(x)
+    x = Activation('sigmoid')(x)
+
     return Model(inputs=inputs, outputs=x)
