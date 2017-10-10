@@ -59,7 +59,7 @@ def train_standard(net_seg, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, s
                           validation_data=(x_val, y_val), callbacks=cb)
 
 
-def train_dscersarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_val, input_shape, epochs, batch, alpha):
+def train_adversarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_val, input_shape, epochs, batch, alpha):
     """Builds and trains the segmentation network and adversarial classifier."""
 
     from keras.models import Model, model_from_json
@@ -119,7 +119,8 @@ def train_dscersarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, 
         x_val_fake, x_val_real = net_seg.predict(imgs_epoch_val, batch_size=batch), msks_epoch_val
         y_val_fake, y_val_real = np.zeros((batch * steps_trn, 1)), np.ones((batch * steps_val, 1))
 
-        # plt.imshow(np.hstack([x_fake[0, :, :, 0], x_real[0, :, :, 0]]), cmap='gray')
+        # samples = [np.hstack([x_trn_fake[i, :, :, 0], x_trn_real[i, :, :, 0]]) for i in range(3)]
+        # plt.imshow(np.vstack(samples), cmap='gray')
         # plt.title('Epoch %d' % epoch)
         # plt.show()
 
@@ -170,14 +171,14 @@ if __name__ == "__main__":
         batch = 4
         steps_trn = int(np.prod(imgs_trn.shape[:-1]) / np.prod((batch, *input_shape))) * 2
         steps_val = steps_trn
-        alpha = 0.
+        alpha = 0.1
 
         # Define networks, sample generators, callbacks.
         net_seg = UNet(input_shape)
 
         if args['adversarial']:
             net_dsc = ConvNetClassifier(net_seg.output_shape[1:])
-            train_dscersarial(net_seg, net_dsc, *data, steps_trn, steps_val, input_shape, epochs, batch, alpha)
+            train_adversarial(net_seg, net_dsc, *data, steps_trn, steps_val, input_shape, epochs, batch, alpha)
         else:
             train_standard(net_seg, *data, steps_trn, steps_val, input_shape, epochs, batch)
 
