@@ -104,14 +104,14 @@ def train_adversarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, 
 
         # Train the combined model for one epoch. Freeze the adversarial classifier
         # so that gradient updates are only made to the segmentation network.
-        # net_cmb.layers[-1].set_weights(net_dsc.get_weights())
-        w0 = np.concatenate([w.flatten() for w in net_cmb.layers[-1].get_weights()])
+        net_cmb.layers[-1].set_weights(net_dsc.get_weights())
+        # w0 = np.concatenate([w.flatten() for w in net_cmb.layers[-1].get_weights()])
         x_trn, y_trn = imgs_epoch_trn, [msks_epoch_trn, np.ones((batch * steps_trn, 1))]
         x_val, y_val = imgs_epoch_val, [msks_epoch_val, np.ones((batch * steps_val, 1))]
         net_cmb.fit(x_trn, y_trn, epochs=epoch + 1, batch_size=batch,
                     initial_epoch=epoch, validation_data=(x_val, y_val))
-        w1 = np.concatenate([w.flatten() for w in net_cmb.layers[-1].get_weights()])
-        assert(np.all(w0 == w1))
+        # w1 = np.concatenate([w.flatten() for w in net_cmb.layers[-1].get_weights()])
+        # assert(np.all(w0 == w1))
 
         # Generate fake and real data for the discriminator.
         x_trn_fake, x_trn_real = net_seg.predict(imgs_epoch_trn, batch_size=batch), msks_epoch_trn
@@ -119,10 +119,10 @@ def train_adversarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, 
         x_val_fake, x_val_real = net_seg.predict(imgs_epoch_val, batch_size=batch), msks_epoch_val
         y_val_fake, y_val_real = np.zeros((batch * steps_trn, 1)), np.ones((batch * steps_val, 1))
 
-        # samples = [np.hstack([x_trn_fake[i, :, :, 0], x_trn_real[i, :, :, 0]]) for i in range(3)]
-        # plt.imshow(np.vstack(samples), cmap='gray')
-        # plt.title('Epoch %d' % epoch)
-        # plt.show()
+        samples = [np.hstack([x_val_fake[i, :, :, 0], x_val_real[i, :, :, 0]]) for i in range(3)]
+        plt.imshow(np.vstack(samples), cmap='gray')
+        plt.title('Epoch %d' % epoch)
+        plt.savefig('checkpoints/adv_sample_%2d.png' % (epoch))
 
         # Combine real and fake data, normalize masks.
         x_trn, y_trn = np.concatenate([x_trn_fake, x_trn_real]), np.concatenate([y_trn_fake, y_trn_real])

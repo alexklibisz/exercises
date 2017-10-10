@@ -22,8 +22,7 @@ def UNet(io_shape, output_name='seg'):
     def conv_layer(nb_filters, x):
         x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_normal')(x)
         x = BatchNormalization(axis=-1)(x)
-        x = Activation('relu')(x)
-        return x
+        return LeakyReLU(0.2)(x)
 
     nfb = 32
 
@@ -107,7 +106,7 @@ def ConvNetClassifier(input_shape):
     x = conv_layer(nfb * 16, x)
 
     x = Flatten()(x)
-    x = Dense(1, kernel_initializer='he_normal')(x)
+    x = Dense(1)(x)
     x = Activation('sigmoid')(x)
 
     return Model(inputs=inputs, outputs=x)
