@@ -1,4 +1,5 @@
 import argparse
+import matplotlib; matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb
@@ -89,29 +90,31 @@ def train_adversarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, 
     gen_trn = sampler(imgs_trn, msks_trn, input_shape, batch * steps_trn)
     gen_val = sampler(imgs_val, msks_val, input_shape, batch * steps_val)
 
+    # Single validation set.
+    imgs_epoch_val, msks_epoch_val = next(gen_val)
+
     # Callbacks.
     cb_dsc = [
         # TensorBoard(log_dir='checkpoints/tblogs', histogram_freq=1, batch_size=batch, write_graph=False, write_grads=True,
         #             write_images=False, embeddings_freq=0, embeddings_layer_names=None, embeddings_metadata=None)
     ]
 
+    dsc_min, dsc_max = 0.3, 0.7
+
     # Training loop. Alternating one epoch training the combined model followed
     # by an epoch of training the adversarial model.
     for epoch in range(epochs):
 
+        # New training set at each epoch.
         imgs_epoch_trn, msks_epoch_trn = next(gen_trn)
-        imgs_epoch_val, msks_epoch_val = next(gen_val)
 
         # Train the combined model for one epoch. Freeze the adversarial classifier
         # so that gradient updates are only made to the segmentation network.
         net_cmb.layers[-1].set_weights(net_dsc.get_weights())
-        # w0 = np.concatenate([w.flatten() for w in net_cmb.layers[-1].get_weights()])
-        x_trn, y_trn = imgs_epoch_trn, [msks_epoch_trn, np.ones((batch * steps_trn, 1))]
-        x_val, y_val = imgs_epoch_val, [msks_epoch_val, np.ones((batch * steps_val, 1))]
+        x_trn, y_trn = imgs_epoch_trn, [msks_epoch_trn, np.ones((batch * steps_trn, 1)) * dsc_max]
+        x_val, y_val = imgs_epoch_val, [msks_epoch_val, np.ones((batch * steps_val, 1)) * dsc_max]
         net_cmb.fit(x_trn, y_trn, epochs=epoch + 1, batch_size=batch,
                     initial_epoch=epoch, validation_data=(x_val, y_val))
-        # w1 = np.concatenate([w.flatten() for w in net_cmb.layers[-1].get_weights()])
-        # assert(np.all(w0 == w1))
 
         # Generate fake and real data for the discriminator.
         x_trn_fake, x_trn_real = net_seg.predict(imgs_epoch_trn, batch_size=batch), msks_epoch_trn
@@ -127,6 +130,7 @@ def train_adversarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, 
         # Combine real and fake data, normalize masks.
         x_trn, y_trn = np.concatenate([x_trn_fake, x_trn_real]), np.concatenate([y_trn_fake, y_trn_real])
         x_val, y_val = np.concatenate([x_val_fake, x_val_real]), np.concatenate([y_val_fake, y_val_real])
+        y_trn, y_val = np.clip(y_trn, dsc_min, dsc_max), np.clip(y_val, dsc_min, dsc_max)
 
         # Train discriminator one epoch.
         net_dsc.fit(x_trn, y_trn, epochs=epoch + 1, batch_size=batch, callbacks=cb_dsc,
