@@ -5,6 +5,7 @@ from keras.layers.advanced_activations import LeakyReLU
 from keras.regularizers import l2
 from keras.models import Model
 from keras import backend as K
+import numpy as np
 
 
 def set_trainable(net, val):
@@ -17,10 +18,15 @@ def get_trainable_count(net):
     return sum([K.count_params(p) for p in set(net.trainable_weights)])
 
 
+def get_flat_weights(net):
+    return np.concatenate([w.flatten() for w in net.get_weights()])
+
+
 def UNet(io_shape, output_name='seg'):
 
     def conv_layer(nb_filters, x):
-        x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_normal')(x)
+        x = Conv2D(nb_filters, (3, 3), strides=(1, 1),
+                   padding='same', kernel_initializer='he_normal')(x)
         x = BatchNormalization(axis=-1)(x)
         return LeakyReLU(0.2)(x)
 
@@ -80,7 +86,9 @@ def ConvNetClassifier(input_shape):
     with a logistic regression classifier replacing the upward pass."""
 
     def conv_layer(nb_filters, x):
-        x = Conv2D(nb_filters, (3, 3), strides=(1, 1), padding='same', kernel_initializer='he_normal')(x)
+        x = Conv2D(nb_filters, (3, 3), strides=(1, 1),
+                   padding='same', kernel_initializer='he_normal')(x)
+        x = BatchNormalization()(x)
         return LeakyReLU(0.2)(x)
 
     nfb = 32

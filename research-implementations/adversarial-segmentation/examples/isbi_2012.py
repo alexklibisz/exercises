@@ -1,17 +1,20 @@
 import argparse
-import matplotlib; matplotlib.use('agg')
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb
 import tifffile as tiff
 
 from keras.optimizers import RMSprop, Adam
-from keras.callbacks import ModelCheckpoint, CSVLogger, TensorBoard
-from keras.losses import binary_crossentropy
+from keras.callbacks import ModelCheckpoint, CSVLogger, TensorBoard, EarlyStopping
+from keras.losses import binary_crossentropy as bce
+from keras.models import Model, model_from_json
+from keras import backend as K
 
 import sys
 sys.path.append('.')
-from networks import UNet, ConvNetClassifier, set_trainable, get_trainable_count
+from networks import UNet, ConvNetClassifier, set_trainable, get_trainable_count, get_flat_weights
 
 np.random.seed(865)
 
@@ -41,7 +44,7 @@ def sampler(imgs, msks, input_shape, batch):
         yield imgs_batch, msks_batch
 
 
-def train_standard(net_seg, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_val, input_shape, epochs, batch):
+def train_standard(S, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_val, input_shape, epochs, batch):
     """Builds and trains the segmentation network by itself."""
 
     # Define sample generators. Generate a single validation set.
@@ -50,41 +53,40 @@ def train_standard(net_seg, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, s
     x_val, y_val = next(gen_val)
 
     cb = [
-        ModelCheckpoint('checkpoints/std_net_seg_{val_loss:.2f}.hdf5',
+        ModelCheckpoint('checkpoints/std_S_{val_loss:.2f}.hdf5',
                         monitor='val_loss', save_best_only=1, verbose=1, mode='min'),
         CSVLogger('checkpoints/std_history.csv')
     ]
 
-    net_seg.compile(optimizer=RMSprop(0.001, decay=1e-3), loss=binary_crossentropy)
-    net_seg.fit_generator(gen_trn, epochs=epochs, steps_per_epoch=steps_trn,
-                          validation_data=(x_val, y_val), callbacks=cb)
+    S.compile(optimizer=RMSprop(0.001, decay=1e-3), loss=bce)
+    S.fit_generator(gen_trn, epochs=epochs, steps_per_epoch=steps_trn,
+                    validation_data=(x_val, y_val), callbacks=cb)
 
 
-def train_adversarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_val, input_shape, epochs, batch, alpha):
+def train_adversarial(S, D, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_val, input_shape, epochs, batch, alpha):
     """Builds and trains the segmentation network and adversarial classifier."""
 
-    from keras.models import Model, model_from_json
-    from keras import backend as K
+    S.summary()
+    D.summary()
 
-    net_seg.summary()
-    net_dsc.summary()
+    # Combine segmentation with frozen discriminator to make generator.
+    set_trainable(D, False)
+    G = Model(S.input, outputs=[S.output, D(S.output)])
+    G.compile(optimizer=RMSprop(0.001, decay=1e-3),
+              loss=bce, loss_weights=[1, alpha])
+    assert get_trainable_count(G) == get_trainable_count(S)
+    assert id(G.layers[-1]) == id(D)
 
-    msks_mean, msks_std = np.mean(msks_trn), np.std(msks_trn)
-
-    # Make the "generator", which combines the segmentation network and the discriminator.
-    set_trainable(net_dsc, False)
-    net_cmb = Model(net_seg.input, outputs=[net_seg.output, net_dsc(net_seg.output)])
-    ll, ww = [binary_crossentropy, binary_crossentropy], [1, alpha]
-    net_cmb.compile(optimizer=RMSprop(0.001, decay=1e-3), loss=ll, loss_weights=ww)
-    assert get_trainable_count(net_cmb) == get_trainable_count(net_seg)
-    assert id(net_cmb.layers[-1]) == id(net_dsc)
+    # G.load_weights('checkpoints/std_net_seg_0.20.hdf5', by_name=True)
 
     # Compile the standalone adversarial network.
     def yp_mean(yt, yp):
         return K.mean(yp)
 
-    set_trainable(net_dsc, True)
-    net_dsc.compile(optimizer=Adam(0.0001), loss=binary_crossentropy, metrics=[yp_mean])
+    # It seems to be important that the learning rate is not too high. lr 0.001
+    # makes the discriminator immediately predict all positive or all negative.
+    set_trainable(D, True)
+    D.compile(optimizer=Adam(0.0001), loss=bce, metrics=['accuracy', yp_mean])
 
     # Define sample generators to yield an epoch of data at once.
     gen_trn = sampler(imgs_trn, msks_trn, input_shape, batch * steps_trn)
@@ -95,46 +97,58 @@ def train_adversarial(net_seg, net_dsc, imgs_trn, msks_trn, imgs_val, msks_val, 
 
     # Callbacks.
     cb_dsc = [
-        # TensorBoard(log_dir='checkpoints/tblogs', histogram_freq=1, batch_size=batch, write_graph=False, write_grads=True,
-        #             write_images=False, embeddings_freq=0, embeddings_layer_names=None, embeddings_metadata=None)
+        TensorBoard(log_dir='checkpoints/tblogs', histogram_freq=1,
+                    batch_size=batch, write_graph=False, write_grads=True),
+        EarlyStopping(monitor='val_loss', min_delta=0, patience=1, mode='min')
     ]
 
-    dsc_min, dsc_max = 0.3, 0.7
+    # Pre-computed labels for generator and discriminator.
+    gyt = np.ones((batch * steps_trn)) * 1.0    # Generator y-train.
+    gyv = np.ones((batch * steps_val)) * 1.0    # Generator y-val.
+    dytf = np.ones((batch * steps_trn)) * 0.0   # Discriminator y-train-fake.
+    dytr = np.ones((batch * steps_trn)) * 1.0   # Discriminator y-train-real.
+    dyvf = np.ones((batch * steps_val)) * 0.0   # Discriminator y-val-fake.
+    dyvr = np.ones((batch * steps_val)) * 1.0   # Discriminator y-val-real.
 
-    # Training loop. Alternating one epoch training the combined model followed
-    # by an epoch of training the adversarial model.
-    for epoch in range(epochs):
+    # Training loop.
+    for ep in range(epochs):
 
         # New training set at each epoch.
         imgs_epoch_trn, msks_epoch_trn = next(gen_trn)
 
         # Train the combined model for one epoch. Freeze the adversarial classifier
         # so that gradient updates are only made to the segmentation network.
-        net_cmb.layers[-1].set_weights(net_dsc.get_weights())
-        x_trn, y_trn = imgs_epoch_trn, [msks_epoch_trn, np.ones((batch * steps_trn, 1)) * dsc_max]
-        x_val, y_val = imgs_epoch_val, [msks_epoch_val, np.ones((batch * steps_val, 1)) * dsc_max]
-        net_cmb.fit(x_trn, y_trn, epochs=epoch + 1, batch_size=batch,
-                    initial_epoch=epoch, validation_data=(x_val, y_val))
+        G.layers[-1].set_weights(D.get_weights())
+        xt, yt = imgs_epoch_trn, [msks_epoch_trn, gyt]
+        xv, yv = imgs_epoch_val, [msks_epoch_val, gyv]
+        G.fit(xt, yt, epochs=ep + 1, batch_size=batch,
+              initial_epoch=ep, validation_data=(xv, yv))
 
         # Generate fake and real data for the discriminator.
-        x_trn_fake, x_trn_real = net_seg.predict(imgs_epoch_trn, batch_size=batch), msks_epoch_trn
-        y_trn_fake, y_trn_real = np.zeros((batch * steps_trn, 1)), np.ones((batch * steps_trn, 1))
-        x_val_fake, x_val_real = net_seg.predict(imgs_epoch_val, batch_size=batch), msks_epoch_val
-        y_val_fake, y_val_real = np.zeros((batch * steps_trn, 1)), np.ones((batch * steps_val, 1))
+        xtf, xtr = S.predict(imgs_epoch_trn, batch_size=batch), msks_epoch_trn
+        xvf, xvr = S.predict(imgs_epoch_val, batch_size=batch), msks_epoch_val
 
-        samples = [np.hstack([x_val_fake[i, :, :, 0], x_val_real[i, :, :, 0]]) for i in range(3)]
-        plt.imshow(np.vstack(samples), cmap='gray')
-        plt.title('Epoch %d' % epoch)
-        plt.savefig('checkpoints/adv_sample_%2d.png' % (epoch))
+        plt.hist(xtf.flatten(), color='red', alpha=0.3)
+        plt.hist(xtr.flatten(), color='blue', alpha=0.3)
+        plt.savefig('out.png')
 
-        # Combine real and fake data, normalize masks.
-        x_trn, y_trn = np.concatenate([x_trn_fake, x_trn_real]), np.concatenate([y_trn_fake, y_trn_real])
-        x_val, y_val = np.concatenate([x_val_fake, x_val_real]), np.concatenate([y_val_fake, y_val_real])
-        y_trn, y_val = np.clip(y_trn, dsc_min, dsc_max), np.clip(y_val, dsc_min, dsc_max)
+        s = [np.hstack([xvf[i, :, :, 0], xvr[i, :, :, 0]]) for i in range(3)]
+        plt.imshow(np.vstack(s), cmap='gray')
+        plt.title('Epoch %d' % ep)
+        plt.savefig('checkpoints/adv_sample_%02d.png' % (ep))
 
-        # Train discriminator one epoch.
-        net_dsc.fit(x_trn, y_trn, epochs=epoch + 1, batch_size=batch, callbacks=cb_dsc,
-                    initial_epoch=epoch, validation_data=(x_val, y_val))
+        # Combine real and fake data to train discriminator.
+        xt, yt = np.concatenate([xtf, xtr]), np.concatenate([dytf, dytr])
+        xv, yv = np.concatenate([xvf, xvr]), np.concatenate([dyvf, dyvr])
+
+        # Train discriminator.
+        # ww1 = get_flat_weights(D)
+        D.fit(xt, yt, epochs=ep + 1, batch_size=batch, callbacks=cb_dsc,
+              initial_epoch=ep, validation_data=(xv, yv))
+        # ww2 = get_flat_weights(D)
+        # print(np.allclose(ww1, ww2))
+
+        # pdb.set_trace()
 
 
 if __name__ == "__main__":
@@ -164,27 +178,27 @@ if __name__ == "__main__":
         imgs /= np.std(imgs)
 
         # Train/val split.
-        imgs_trn, msks_trn = imgs[:20, ...], msks[:20, ...]
-        imgs_val, msks_val = imgs[20:, ...], msks[20:, ...]
+        imgs_trn, msks_trn = imgs[:24, ...], msks[:24, ...]
+        imgs_val, msks_val = imgs[24:, ...], msks[24:, ...]
         data = (imgs_trn, msks_trn, imgs_val, msks_val)
 
         # Network and training parameters.
-        input_shape = (256, 256, 1)
+        input_shape = (96, 96, 1)
         epochs = 40
         steps = imgs_trn.shape[0]
         batch = 4
-        steps_trn = int(np.prod(imgs_trn.shape[:-1]) / np.prod((batch, *input_shape))) * 2
-        steps_val = steps_trn
-        alpha = 0.1
+        steps_trn = int(np.prod(imgs_trn.shape[:-1]) / np.prod((batch, *input_shape)))
+        steps_val = int(np.prod(imgs_val.shape[:-1]) / np.prod((batch, *input_shape)))
+        alpha = 1.0
 
         # Define networks, sample generators, callbacks.
-        net_seg = UNet(input_shape)
+        S = UNet(input_shape)
 
         if args['adversarial']:
-            net_dsc = ConvNetClassifier(net_seg.output_shape[1:])
-            train_adversarial(net_seg, net_dsc, *data, steps_trn, steps_val, input_shape, epochs, batch, alpha)
+            D = ConvNetClassifier(S.output_shape[1:])
+            train_adversarial(S, D, *data, steps_trn, steps_val, input_shape, epochs, batch, alpha)
         else:
-            train_standard(net_seg, *data, steps_trn, steps_val, input_shape, epochs, batch)
+            train_standard(S, *data, steps_trn, steps_val, input_shape, epochs, batch)
 
     if args['submit']:
 
