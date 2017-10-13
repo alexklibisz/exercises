@@ -172,14 +172,14 @@ def train_adversarial(S, D, imgs_trn, msks_trn, imgs_val, msks_val, iters_trn,
 
         # Extract and save metrics.
         row = {
-            'S F1 t': S_history.history['F1'][0],
-            'S F1 v': S_history.history['val_F1'][0],
-            'D Acc t': D_history.history['acc'][0],
-            'D Acc v': D_history.history['val_acc'][0],
-            'G-S F1 t': G_history.history['seg_F1'][0],
-            'G-S F1 v': G_history.history['val_seg_F1'][0],
-            'G-D Acc t': G_history.history['model_2_acc'][0],
-            'G-D Acc v': G_history.history['val_model_2_acc'][0],
+            'S F1 train': S_history.history['F1'][0],
+            'S F1 val': S_history.history['val_F1'][0],
+            'D Accuracy train': D_history.history['acc'][0],
+            'D Accuracy val': D_history.history['val_acc'][0],
+            'G/S F1 train': G_history.history['seg_F1'][0],
+            'G/S F1 val': G_history.history['val_seg_F1'][0],
+            'G/D Accuracy train': G_history.history['model_2_acc'][0],
+            'G/D Accuracy val': G_history.history['val_model_2_acc'][0],
         }
 
         if e == 0:
@@ -191,50 +191,41 @@ def train_adversarial(S, D, imgs_trn, msks_trn, imgs_val, msks_val, iters_trn,
 
 if __name__ == "__main__":
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--train', action='store_true', default=True)
-    ap.add_argument('--adversarial', action='store_true', default=False)
-    ap.add_argument('--submit', action='store_true', default=False)
-    ap.add_argument('--model', type=str)
-    ap.add_argument('--data_dir', type=str, default='data/isbi_2012')
-    args = vars(ap.parse_args())
-
     # Paths for serializing model, reading data, etc.
+    # Download the dataset from http://brainiac2.mit.edu/isbi_challenge/.
     trn_imgs_path = 'data/isbi_2012/train-volume.tif'
     trn_msks_path = 'data/isbi_2012/train-labels.tif'
     tst_imgs_path = 'data/isbi_2012/test-volume.tif'
     tst_msks_path = 'data/isbi_2012/test-labels.tif'
 
-    if args['train']:
+    # Load data, images and labels have range [0, 255].
+    imgs = tiff.imread(trn_imgs_path)[:, :, :, np.newaxis] / 255.
+    msks = tiff.imread(trn_msks_path)[:, :, :, np.newaxis] / 255.
 
-        # Load data, images and labels have range [0, 255].
-        imgs = tiff.imread(trn_imgs_path)[:, :, :, np.newaxis] / 255.
-        msks = tiff.imread(trn_msks_path)[:, :, :, np.newaxis] / 255.
+    # Normalize images.
+    imgs -= np.mean(imgs)
+    imgs /= np.std(imgs)
 
-        # Normalize images.
-        imgs -= np.mean(imgs)
-        imgs /= np.std(imgs)
+    # Train/val split.
+    imgs_trn, msks_trn = imgs[:20, ...], msks[:20, ...]
+    imgs_val, msks_val = imgs[20:, ...], msks[20:, ...]
+    data = (imgs_trn, msks_trn, imgs_val, msks_val)
 
-        # Train/val split.
-        imgs_trn, msks_trn = imgs[:20, ...], msks[:20, ...]
-        imgs_val, msks_val = imgs[20:, ...], msks[20:, ...]
-        data = (imgs_trn, msks_trn, imgs_val, msks_val)
+    # Network and training parameters.
+    input_shape = (128, 128, 1)
+    total_iters = 10000
+    iters_trn = 500
+    iters_val = 100
+    batch = 8
+    epochs = total_iters // iters_trn
+    alpha0 = 0.1
+    alpha1 = 1
+    alpha_switch_epoch = 3
 
-        # Network and training parameters.
-        input_shape = (128, 128, 1)
-        total_iters = 10000
-        iters_trn = 500
-        iters_val = 100
-        batch = 8
-        epochs = total_iters // iters_trn
-        alpha0 = 0.1
-        alpha1 = 1
-        alpha_switch_epoch = 3
+    # Networks.
+    S = UNet(input_shape)
+    D = ConvNetClassifier(S.output_shape[1:])
 
-        # Networks.
-        S = UNet(input_shape)
-        D = ConvNetClassifier(S.output_shape[1:])
-
-        # Training.
-        train_adversarial(S, D, *data, iters_trn, iters_val, epochs,
-                          batch, alpha0, alpha1, alpha_switch_epoch)
+    # Training.
+    train_adversarial(S, D, *data, iters_trn, iters_val, epochs,
+                      batch, alpha0, alpha1, alpha_switch_epoch)
