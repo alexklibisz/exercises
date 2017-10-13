@@ -1,10 +1,8 @@
-import argparse
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pdb
 import tifffile as tiff
 
 from keras.optimizers import RMSprop, Adam

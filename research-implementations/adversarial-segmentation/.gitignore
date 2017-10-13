@@ -1,4 +1,5 @@
 __pycache__/
-checkpoints
-data
-!**/*/.keep
+checkpoints/*
+data/*
+!checkpoints/.keep
+!data/isbi_2012/README.md
