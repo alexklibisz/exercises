@@ -2,4 +2,4 @@ __pycache__/
 checkpoints/*
 data/*
 !checkpoints/.keep
-!data/isbi_2012/README.md
+!data/README.md

@@ -191,10 +191,10 @@ if __name__ == "__main__":
 
     # Paths for serializing model, reading data, etc.
     # Download the dataset from http://brainiac2.mit.edu/isbi_challenge/.
-    trn_imgs_path = 'data/isbi_2012/train-volume.tif'
-    trn_msks_path = 'data/isbi_2012/train-labels.tif'
-    tst_imgs_path = 'data/isbi_2012/test-volume.tif'
-    tst_msks_path = 'data/isbi_2012/test-labels.tif'
+    trn_imgs_path = 'data/train-volume.tif'
+    trn_msks_path = 'data/train-labels.tif'
+    tst_imgs_path = 'data/test-volume.tif'
+    tst_msks_path = 'data/test-labels.tif'
 
     # Load data, images and labels have range [0, 255].
     imgs = tiff.imread(trn_imgs_path)[:, :, :, np.newaxis] / 255.
