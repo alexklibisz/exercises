@@ -8,6 +8,24 @@ from keras import backend as K
 import numpy as np
 
 
+def prec(yt, yp):
+    yp = K.round(yp)
+    return K.sum(yp * yt) / (K.sum(yp) + K.epsilon())
+
+
+def reca(yt, yp):
+    yp = K.round(yp)
+    tp = K.sum(yp * yt)
+    fn = K.sum(K.clip(yt - yp, 0, 1))
+    return K.sum(yp * yt) / (tp + fn + K.epsilon())
+
+
+def F1(yt, yp):
+    p = prec(yt, yp)
+    r = reca(yt, yp)
+    return (2 * p * r) / (p + r + K.epsilon())
+
+
 def set_trainable(net, val):
     for l in net.layers:
         l.trainable = val
@@ -34,46 +52,55 @@ def UNet(io_shape, output_name='seg'):
 
     x = inputs = Input(io_shape)
     x = conv_layer(nfb, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb, x)
     dc_0_out = x
 
     x = MaxPooling2D(2, strides=2)(x)
     x = conv_layer(nfb * 2, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb * 2, x)
     dc_1_out = x
 
     x = MaxPooling2D(2, strides=2)(x)
     x = conv_layer(nfb * 4, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb * 4, x)
     dc_2_out = x
 
     x = MaxPooling2D(2, strides=2)(x)
     x = conv_layer(nfb * 8, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb * 8, x)
     dc_3_out = x
 
     x = MaxPooling2D(2, strides=2)(x)
     x = conv_layer(nfb * 16, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb * 16, x)
     x = UpSampling2D()(x)
 
     x = concatenate([x, dc_3_out], axis=-1)
     x = conv_layer(nfb * 8, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb * 8, x)
     x = UpSampling2D()(x)
 
     x = concatenate([x, dc_2_out], axis=-1)
     x = conv_layer(nfb * 4, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb * 4, x)
     x = UpSampling2D()(x)
 
     x = concatenate([x, dc_1_out], axis=-1)
     x = conv_layer(nfb * 2, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb * 2, x)
     x = UpSampling2D()(x)
 
     x = concatenate([x, dc_0_out], axis=-1)
     x = conv_layer(nfb, x)
+    x = Dropout(0.1)(x)
     x = conv_layer(nfb, x)
     x = Conv2D(1, 1)(x)
     x = Activation('sigmoid', name=output_name)(x)

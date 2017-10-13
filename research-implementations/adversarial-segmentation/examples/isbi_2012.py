@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pdb
 import tifffile as tiff
 
@@ -14,33 +15,34 @@ from keras import backend as K
 
 import sys
 sys.path.append('.')
-from networks import UNet, ConvNetClassifier, set_trainable, get_trainable_count, get_flat_weights
+from networks import UNet, ConvNetClassifier, set_trainable, \
+    get_trainable_count, get_flat_weights, F1
 
 np.random.seed(865)
 
 
 def sampler(imgs, msks, input_shape, batch):
-    """Generator that yields training samples randomly sampled from given data
-    with simple augmentations."""
+    """Generator that yields training batches randomly sampled 
+    from given data with simple augmentations."""
     N, H, W = imgs.shape[:-1]
-    h, w = input_shape[:-1]
+    h, w = input_shape[1:-1]
     ii = np.arange(N)
-    transforms = [
+    aug_funcs = [
         lambda x: x,
         lambda x: np.rot90(x, 1, (0, 1)),
         lambda x: np.rot90(x, 2, (0, 1)),
         lambda x: np.rot90(x, 3, (0, 1)),
     ]
     while True:
-        ii_ = np.random.choice(ii, batch, replace=(N <= batch))
-        y0 = np.random.randint(0, H - h)
-        x0 = np.random.randint(0, W - w)
-        imgs_batch = imgs[ii_, y0:y0 + h, x0:x0 + h, ...]
-        msks_batch = msks[ii_, y0:y0 + h, x0:x0 + h, ...]
-        tt = np.random.choice(transforms, batch)
-        for i, t in enumerate(tt):
-            imgs_batch[i] = t(imgs_batch[i])
-            msks_batch[i] = t(msks_batch[i])
+        bii = np.random.choice(ii, batch, replace=(N <= batch))
+        imgs_batch = np.zeros((batch, *input_shape[1:]), dtype=np.float32)
+        msks_batch = np.zeros((batch, *input_shape[1:]), dtype=np.uint8)
+        for i in range(batch):
+            af = np.random.choice(aug_funcs)
+            y0 = np.random.randint(0, H - h)
+            x0 = np.random.randint(0, W - w)
+            imgs_batch[i] = af(imgs[bii[i], y0:y0 + h, x0:x0 + w, :])
+            msks_batch[i] = af(msks[bii[i], y0:y0 + h, x0:x0 + w, :])
         yield imgs_batch, msks_batch
 
 
@@ -49,7 +51,7 @@ def train_standard(S, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_v
 
     # Define sample generators. Generate a single validation set.
     gen_trn = sampler(imgs_trn, msks_trn, input_shape, batch)
-    gen_val = sampler(imgs_val, msks_val, input_shape, steps_val)
+    gen_val = sampler(imgs_val, msks_val, input_shape, batch * steps_val)
     x_val, y_val = next(gen_val)
 
     cb = [
@@ -63,92 +65,128 @@ def train_standard(S, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_v
                     validation_data=(x_val, y_val), callbacks=cb)
 
 
-def train_adversarial(S, D, imgs_trn, msks_trn, imgs_val, msks_val, steps_trn, steps_val, input_shape, epochs, batch, alpha):
+def train_adversarial(S, D, imgs_trn, msks_trn, imgs_val, msks_val, iters_trn,
+                      iters_val, epochs, batch, alpha0, alpha1, alpha_switch_epoch):
     """Builds and trains the segmentation network and adversarial classifier."""
 
-    S.summary()
-    D.summary()
+    # Compile standalone segmentation network S.
+    S.compile(optimizer=RMSprop(1e-3, decay=1e-3), loss=bce, metrics=[F1])
 
-    # Combine segmentation with frozen discriminator to make generator.
-    set_trainable(D, False)
-    G = Model(S.input, outputs=[S.output, D(S.output)])
-    G.compile(optimizer=RMSprop(0.001, decay=1e-3),
-              loss=bce, loss_weights=[1, alpha])
-    assert get_trainable_count(G) == get_trainable_count(S)
-    assert id(G.layers[-1]) == id(D)
+    # Custom metrics for monitoring D's outputs.
+    def ytm(yt, yp):
+        return K.mean(yt)
 
-    # G.load_weights('checkpoints/std_net_seg_0.20.hdf5', by_name=True)
-
-    # Compile the standalone adversarial network.
-    def yp_mean(yt, yp):
+    def ypm(yt, yp):
         return K.mean(yp)
 
-    # It seems to be important that the learning rate is not too high. lr 0.001
-    # makes the discriminator immediately predict all positive or all negative.
-    set_trainable(D, True)
-    D.compile(optimizer=Adam(0.0001), loss=bce, metrics=['accuracy', yp_mean])
+    # Compile standalone discriminator network D.
+    D.compile(optimizer=Adam(0.001), loss=bce, metrics=['accuracy', ytm, ypm])
 
-    # Define sample generators to yield an epoch of data at once.
-    gen_trn = sampler(imgs_trn, msks_trn, input_shape, batch * steps_trn)
-    gen_val = sampler(imgs_val, msks_val, input_shape, batch * steps_val)
+    # Combine segmentation (copy) with frozen discriminator to make generator.
+    # Starts with a low alpha, later increased, based on Xue et. al.
+    GS = model_from_json(S.to_json())
+    GD = model_from_json(D.to_json())
+    set_trainable(GD, False)
+    G = Model(GS.input, outputs=[GS.output, GD(GS.output)])
+    opt = RMSprop(1e-3, decay=1e-3)
+    G.compile(optimizer=opt, loss=bce, loss_weights=[1, alpha0],
+              metrics={'seg': [F1], 'model_2': ['accuracy']})
 
-    # Single validation set.
+    # Check network instantiations.
+    assert id(S) != id(GS)
+    assert id(G.layers[-1]) != id(D)
+    assert id(G.layers[-1]) == id(GD)
+    assert get_trainable_count(G) == get_trainable_count(S)
+
+    # Define sample generators and store a single validation set.
+    gen_trn = sampler(imgs_trn, msks_trn, S.input_shape, batch * iters_trn)
+    gen_val = sampler(imgs_val, msks_val, S.input_shape, batch * iters_val)
     imgs_epoch_val, msks_epoch_val = next(gen_val)
 
-    # Callbacks.
-    cb_dsc = [
-        TensorBoard(log_dir='checkpoints/tblogs', histogram_freq=1,
-                    batch_size=batch, write_graph=False, write_grads=True),
-        EarlyStopping(monitor='val_loss', min_delta=0, patience=1, mode='min')
-    ]
+    # Pre-compute labels for generator and discriminator.
+    gyt = np.ones((batch * iters_trn)) * 1.0    # Generator y-train.
+    gyv = np.ones((batch * iters_val)) * 1.0    # Generator y-val.
+    dytf = np.ones((batch * iters_trn)) * 0.0   # Discriminator y-train-fake.
+    dytr = np.ones((batch * iters_trn)) * 1.0   # Discriminator y-train-real.
+    dyvf = np.ones((batch * iters_val)) * 0.0   # Discriminator y-val-fake.
+    dyvr = np.ones((batch * iters_val)) * 1.0   # Discriminator y-val-real.
 
-    # Pre-computed labels for generator and discriminator.
-    gyt = np.ones((batch * steps_trn)) * 1.0    # Generator y-train.
-    gyv = np.ones((batch * steps_val)) * 1.0    # Generator y-val.
-    dytf = np.ones((batch * steps_trn)) * 0.0   # Discriminator y-train-fake.
-    dytr = np.ones((batch * steps_trn)) * 1.0   # Discriminator y-train-real.
-    dyvf = np.ones((batch * steps_val)) * 0.0   # Discriminator y-val-fake.
-    dyvr = np.ones((batch * steps_val)) * 1.0   # Discriminator y-val-real.
+    # Training loop. Training S, G, D in lock step.
+    for e in range(epochs):
 
-    # Training loop.
-    for ep in range(epochs):
+        # Update alpha for generator if switch point reached.
+        if e == alpha_switch_epoch:
+            print('Increasing alpha %.1lf -> %.1lf' % (alpha0, alpha1))
+            opt = G.optimizer
+            G.compile(optimizer=opt, loss=bce, loss_weights=[1, alpha1],
+                      metrics={'seg': [F1], 'model_2': ['accuracy']})
 
-        # New training set at each epoch.
+        # New training set for this epoch.
         imgs_epoch_trn, msks_epoch_trn = next(gen_trn)
 
-        # Train the combined model for one epoch. Freeze the adversarial classifier
-        # so that gradient updates are only made to the segmentation network.
+        # Fit segmentation model for one epoch.
+        print('%03d: Fitting segmentation-only model' % e)
+        xt, yt = imgs_epoch_trn, msks_epoch_trn
+        xv, yv = imgs_epoch_val, msks_epoch_val
+        S_history = S.fit(xt, yt, validation_data=(xv, yv), epochs=e + 1,
+                          initial_epoch=e, batch_size=batch)
+
+        # Update discriminator weights and fit generator for one epoch.
+        print('%03d: Fitting adversarial segmentation model' % e)
         G.layers[-1].set_weights(D.get_weights())
         xt, yt = imgs_epoch_trn, [msks_epoch_trn, gyt]
         xv, yv = imgs_epoch_val, [msks_epoch_val, gyv]
-        G.fit(xt, yt, epochs=ep + 1, batch_size=batch,
-              initial_epoch=ep, validation_data=(xv, yv))
+        G_history = G.fit(xt, yt, validation_data=(xv, yv), epochs=e + 1,
+                          initial_epoch=e, batch_size=batch)
 
-        # Generate fake and real data for the discriminator.
-        xtf, xtr = S.predict(imgs_epoch_trn, batch_size=batch), msks_epoch_trn
-        xvf, xvr = S.predict(imgs_epoch_val, batch_size=batch), msks_epoch_val
-
-        plt.hist(xtf.flatten(), color='red', alpha=0.3)
-        plt.hist(xtr.flatten(), color='blue', alpha=0.3)
-        plt.savefig('out.png')
-
-        s = [np.hstack([xvf[i, :, :, 0], xvr[i, :, :, 0]]) for i in range(3)]
-        plt.imshow(np.vstack(s), cmap='gray')
-        plt.title('Epoch %d' % ep)
-        plt.savefig('checkpoints/adv_sample_%02d.png' % (ep))
-
-        # Combine real and fake data to train discriminator.
+        # Generate and combine fake and real data for the discriminator.
+        xtf = GS.predict(imgs_epoch_trn, batch_size=batch)
+        xvf = GS.predict(imgs_epoch_val, batch_size=batch)
+        xtr = msks_epoch_trn
+        xvr = msks_epoch_val
         xt, yt = np.concatenate([xtf, xtr]), np.concatenate([dytf, dytr])
         xv, yv = np.concatenate([xvf, xvr]), np.concatenate([dyvf, dyvr])
 
         # Train discriminator.
-        # ww1 = get_flat_weights(D)
-        D.fit(xt, yt, epochs=ep + 1, batch_size=batch, callbacks=cb_dsc,
-              initial_epoch=ep, validation_data=(xv, yv))
-        # ww2 = get_flat_weights(D)
-        # print(np.allclose(ww1, ww2))
+        print('%03d: Fitting adversarial discriminator model' % e)
+        D_history = D.fit(xt, yt, validation_data=(xv, yv), epochs=e + 1,
+                          initial_epoch=e, batch_size=batch)
 
-        # pdb.set_trace()
+        # Plot samples.
+        S_msks_pred = S.predict(imgs_epoch_val[:10, ...], batch_size=batch)
+        fig, _ = plt.subplots(10, 4, figsize=(8, 20))
+        plt.suptitle('Epoch %d' % e)
+        fig.axes[0].set_title('Image')
+        fig.axes[1].set_title('True Mask')
+        fig.axes[2].set_title('Adv. Mask')
+        fig.axes[3].set_title('Std. Mask')
+        for ax in fig.axes:
+            ax.axis('off')
+        for i in range(0, 10):
+            fig.axes[i * 4 + 0].imshow(imgs_epoch_val[i, :, :, 0], cmap='gray')
+            fig.axes[i * 4 + 1].imshow(xvr[i, :, :, 0], cmap='gray')
+            fig.axes[i * 4 + 2].imshow(xvf[i, :, :, 0], cmap='gray')
+            fig.axes[i * 4 + 3].imshow(S_msks_pred[i, :, :, 0], cmap='gray')
+        plt.savefig('checkpoints/adv_sample_%02d.png' % e, dpi=150,
+                    bbox_inches='tight', pad_inches=0)
+
+        # Extract and save metrics.
+        row = {
+            'S F1 t': S_history.history['F1'][0],
+            'S F1 v': S_history.history['val_F1'][0],
+            'D Acc t': D_history.history['acc'][0],
+            'D Acc v': D_history.history['val_acc'][0],
+            'G-S F1 t': G_history.history['seg_F1'][0],
+            'G-S F1 v': G_history.history['val_seg_F1'][0],
+            'G-D Acc t': G_history.history['model_2_acc'][0],
+            'G-D Acc v': G_history.history['val_model_2_acc'][0],
+        }
+
+        if e == 0:
+            metrics = pd.DataFrame([row], columns=row.keys())
+        else:
+            metrics = metrics.append([row], ignore_index=True)
+        metrics.to_csv('checkpoints/adv_metrics.csv', index=False)
 
 
 if __name__ == "__main__":
@@ -178,28 +216,25 @@ if __name__ == "__main__":
         imgs /= np.std(imgs)
 
         # Train/val split.
-        imgs_trn, msks_trn = imgs[:24, ...], msks[:24, ...]
-        imgs_val, msks_val = imgs[24:, ...], msks[24:, ...]
+        imgs_trn, msks_trn = imgs[:20, ...], msks[:20, ...]
+        imgs_val, msks_val = imgs[20:, ...], msks[20:, ...]
         data = (imgs_trn, msks_trn, imgs_val, msks_val)
 
         # Network and training parameters.
-        input_shape = (96, 96, 1)
-        epochs = 40
-        steps = imgs_trn.shape[0]
-        batch = 4
-        steps_trn = int(np.prod(imgs_trn.shape[:-1]) / np.prod((batch, *input_shape)))
-        steps_val = int(np.prod(imgs_val.shape[:-1]) / np.prod((batch, *input_shape)))
-        alpha = 1.0
+        input_shape = (128, 128, 1)
+        total_iters = 10000
+        iters_trn = 500
+        iters_val = 100
+        batch = 8
+        epochs = total_iters // iters_trn
+        alpha0 = 0.1
+        alpha1 = 1
+        alpha_switch_epoch = 3
 
-        # Define networks, sample generators, callbacks.
+        # Networks.
         S = UNet(input_shape)
+        D = ConvNetClassifier(S.output_shape[1:])
 
-        if args['adversarial']:
-            D = ConvNetClassifier(S.output_shape[1:])
-            train_adversarial(S, D, *data, steps_trn, steps_val, input_shape, epochs, batch, alpha)
-        else:
-            train_standard(S, *data, steps_trn, steps_val, input_shape, epochs, batch)
-
-    if args['submit']:
-
-        pass
+        # Training.
+        train_adversarial(S, D, *data, iters_trn, iters_val, epochs,
+                          batch, alpha0, alpha1, alpha_switch_epoch)
