@@ -1,3 +1,4 @@
+from math import ceil
 import numpy as np
 import pandas as pd
 import re
@@ -160,3 +161,40 @@ def pmf_expectation(pmf):
 def pmf_variance(pmf):
     exp = pmf_expectation(pmf)
     return sum(pmf.values * (pmf.index - exp) ** 2)
+
+
+def percentile_rank(a, q):
+    """Compute the proportion of values in a less than or equal to q"""
+    if type(a) not in {pd.Series, np.array}:
+        a = np.array(a)
+    m = a <= q
+    return 100 * sum(b) / len(m)
+
+
+def percentile(a, q):
+    """Compute the value in a that falls at percentile q."""
+    if type(a) not in {pd.Series, np.array}:
+        a = np.array(a)
+    n = int(ceil(q / 100 * len(a)))
+    return sorted(a)[n - 1]
+
+
+def pmf_to_cdf(pmf):
+    return pmf.sort_index().cumsum()
+
+
+def cdf_percentile(cdf, q):
+    q = q if 0 <= q <= 1 else q / 100.
+    return cdf.index[np.argmin(abs(cdf.values - q))]
+
+
+def cdf_percentile_rank(cdf, q):
+    m = sum(cdf.index <= q) - 1
+    return cdf.values[m] * 100
+
+
+def cdf_random_sample(cdf, n):
+    """Generate a random sample from a CDF by computing the values for 
+    randomly-chosen percentiles."""
+    Q = np.random.uniform(0, 100, n)
+    return pd.Series(Q).apply(lambda q: cdf_percentile(cdf, q))
