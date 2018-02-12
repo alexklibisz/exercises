@@ -1,6 +1,7 @@
 from math import ceil, pi, sqrt, log
 import numpy as np
 import pandas as pd
+import scipy.stats
 import re
 
 
