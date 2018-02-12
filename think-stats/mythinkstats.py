@@ -1,4 +1,4 @@
-from math import ceil
+from math import ceil, pi, sqrt, log
 import numpy as np
 import pandas as pd
 import re
@@ -117,6 +117,10 @@ def CleanFemResp(df):
 
 
 def read_data(dct_file, dat_file, nrows=None):
+    return nsfg_read_data(dct_file, dat_file, nrows)
+
+
+def nsfg_read_data(dct_file, dat_file, nrows=None):
 
     dct = ReadStataDct(dct_file)
     df = dct.ReadFixedWidth(dat_file, compression='gzip', nrows=nrows)
@@ -130,6 +134,132 @@ def read_data(dct_file, dat_file, nrows=None):
     return df
 
 
+def babyboom_read_data(filename):
+    """Reads the babyboom data.
+
+    filename: string
+
+    returns: DataFrame
+    """
+    var_info = [
+        ('time', 1, 8, int),
+        ('sex', 9, 16, int),
+        ('weight_g', 17, 24, int),
+        ('minutes', 25, 32, int),
+    ]
+    columns = ['name', 'start', 'end', 'type']
+    variables = pd.DataFrame(var_info, columns=columns)
+    variables.end += 1
+    dct = FixedWidthVariables(variables, index_base=1)
+    return dct.ReadFixedWidth(filename, skiprows=59)
+
+
+def CleanBrfssFrame(df):
+    """Recodes BRFSS variables.
+
+    df: DataFrame
+    """
+    # clean age
+    df.age.replace([7, 9], float('NaN'), inplace=True)
+
+    # clean height
+    df.htm3.replace([999], float('NaN'), inplace=True)
+
+    # clean weight
+    df.wtkg2.replace([99999], float('NaN'), inplace=True)
+    df.wtkg2 /= 100.0
+
+    # clean weight a year ago
+    df.wtyrago.replace([7777, 9999], float('NaN'), inplace=True)
+    df['wtyrago'] = df.wtyrago.apply(
+        lambda x: x / 2.2 if x < 9000 else x - 9000)
+
+
+def brfss_read_data(filename='CDBRFS08.ASC.gz', compression='gzip', nrows=None):
+    """Reads the BRFSS data.
+
+    filename: string
+    compression: string
+    nrows: int number of rows to read, or None for all
+
+    returns: DataFrame
+    """
+    var_info = [
+        ('age', 101, 102, int),
+        ('sex', 143, 143, int),
+        ('wtyrago', 127, 130, int),
+        ('finalwt', 799, 808, int),
+        ('wtkg2', 1254, 1258, int),
+        ('htm3', 1251, 1253, int),
+    ]
+    columns = ['name', 'start', 'end', 'type']
+    variables = pd.DataFrame(var_info, columns=columns)
+    variables.end += 1
+    dct = FixedWidthVariables(variables, index_base=1)
+
+    df = dct.ReadFixedWidth(filename, compression=compression, nrows=nrows)
+    CleanBrfssFrame(df)
+    return df
+
+
+def hinc_clean(s):
+    """Converts dollar amounts to integers."""
+    try:
+        return int(s.lstrip('$').replace(',', ''))
+    except ValueError:
+        if s == 'Under':
+            return 0
+        elif s == 'over':
+            return np.inf
+        return None
+
+
+def hinc_read_data(filename='hinc06.csv'):
+    """Reads filename and returns populations in thousands
+
+    filename: string
+
+    returns: pandas Series of populations in thousands
+    """
+    data = pd.read_csv(filename, header=None, skiprows=9)
+    cols = data[[0, 1]]
+
+    res = []
+    for _, row in cols.iterrows():
+        label, freq = row.values
+        freq = int(freq.replace(',', ''))
+
+        t = label.split()
+        low, high = hinc_clean(t[0]), hinc_clean(t[-1])
+
+        res.append((high, freq))
+
+    df = pd.DataFrame(res)
+    # correct the first range
+    df.loc[0, 0] -= 1
+    # compute the cumulative sum of the freqs
+    df[2] = df[1].cumsum()
+    # normalize the cumulative freqs
+    total = df[2][41]
+    df[3] = df[2] / total
+    # add column names
+    df.columns = ['income',  'freq', 'cumsum', 'ps']
+    return df
+
+
+def populations_read_data(filename='PEP_2012_PEPANNRES_with_ann.csv'):
+    """Reads filename and returns populations in thousands
+
+    filename: string
+
+    returns: pandas Series of populations in thousands
+    """
+    df = pd.read_csv(filename, header=None, skiprows=2, encoding='iso-8859-1')
+    populations = df[7]
+    populations.replace(0, np.nan, inplace=True)
+    return populations.dropna()
+
+
 def cohen_effect_size(samplea, sampleb):
     xbara = np.mean(samplea)
     xbarb = np.mean(sampleb)
@@ -138,6 +268,15 @@ def cohen_effect_size(samplea, sampleb):
     s = (na * np.var(samplea) + nb * np.var(sampleb)) / (na + nb)
     s = np.sqrt(s)
     return (xbara - xbarb) / s
+
+
+def trim_outliers(a, p=0.01):
+    n = int(p * len(a))
+    if type(a) == pd.Series:
+        a.sort_values(inplace=True)
+    else:
+        a.sort()
+    return a[n:-n]
 
 
 def pmf_observer_bias(pmf):
@@ -168,7 +307,7 @@ def percentile_rank(a, q):
     if type(a) not in {pd.Series, np.array}:
         a = np.array(a)
     m = a <= q
-    return 100 * sum(b) / len(m)
+    return 100 * sum(m) / len(m)
 
 
 def percentile(a, q):
@@ -180,7 +319,9 @@ def percentile(a, q):
 
 
 def pmf_to_cdf(pmf):
-    return pmf.sort_index().cumsum()
+    cdf = pmf.sort_index().cumsum()
+    return cdf / cdf.max()
+    # return pmf.sort_index().cumsum()
 
 
 def cdf_percentile(cdf, q):
@@ -194,7 +335,57 @@ def cdf_percentile_rank(cdf, q):
 
 
 def cdf_random_sample(cdf, n):
-    """Generate a random sample from a CDF by computing the values for 
+    """Generate a random sample from a CDF by computing the values for
     randomly-chosen percentiles."""
     Q = np.random.uniform(0, 100, n)
     return pd.Series(Q).apply(lambda q: cdf_percentile(cdf, q))
+
+
+def pmf_exponential(lam, X=np.linspace(0, 5, 1001)):
+    return pd.Series(lam * np.exp(-lam * X), index=X)
+
+
+def rnd_exponential(lam, n):
+    """Random exponential sample.
+    exponential CDF: p(x) = 1 - exp(-lam * x)
+    solving for x: x = -log(1 - p) / lam"""
+    p = np.random.uniform(0, 1, n)
+    x = -1 * np.log(1 - p) / lam
+    return pd.Series(x)
+
+
+def pmf_normal(mu, sig, n=1000, Z=4):
+    """Generate a PMF for a Normal distribution over a range of values.
+    If you want a *sample* from a normal distribution, use np.random.normal."""
+    X = np.random.uniform(mu - Z * sig, mu + Z * sig, n)
+    P = np.exp((-1 * (X - mu) ** 2) / (2 * sig ** 2)) / sqrt(2 * pi * sig**2)
+    return pd.Series(P, index=X)
+
+
+def pmf_pareto(xm, alpha, X=np.linspace(0, 5, 1001)):
+    P = (alpha * (xm ** alpha)) / (X ** (alpha + 1) + 1e-7) * (X > xm)
+    return pd.Series(P, index=X)
+
+
+def rnd_pareto(xm, alpha, n):
+    """Random pareto sample.
+    exponential CDF: p(x) = 1 - (xm/x)^alpha
+    solving for x: x = xm / (1-p)^(1/alpha)
+    http://www.wolframalpha.com/input/?i=p+%3D+1+-+(b+%2F+x)%5Ea,+solve+for+x"""
+    p = np.random.uniform(0, 1, n)
+    x = xm / (1 - p)**(1 / alpha)
+    return pd.Series(x)
+
+
+def pmf_weibull(lam, k, X=np.linspace(0.01, 5, 1001)):
+    P = (k / lam) * ((X + 1e-7) / lam) ** (k - 1) * np.exp(-1 * (X / lam)**k)
+    return pd.Series(P, index=X)
+
+
+def rnd_weibull(lam, k, n):
+    """Random weibull sample using inverse transform sampling.
+    x = lam(-log(1 - p))^(1/k)
+    """
+    P = np.random.uniform(0, 1, n)
+    X = lam * (-1 * np.log(1 - P))**(1 / k)
+    return pd.Series(X)
