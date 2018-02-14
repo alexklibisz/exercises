@@ -390,3 +390,33 @@ def rnd_weibull(lam, k, n):
     P = np.random.uniform(0, 1, n)
     X = lam * (-1 * np.log(1 - P))**(1 / k)
     return pd.Series(X)
+
+
+def covariance(X, Y):
+    return np.dot(
+        X - X.mean(),
+        Y - Y.mean()) / len(X)
+
+
+def pearson_correlation(X, Y):
+    """Covariance expressed in terms of (standardized) Z-scores."""
+    return covariance(X, Y) / X.std() / Y.std()
+
+
+def spearman_correlation(X, Y):
+    """Pearson correlation evaluated on the ranks of (X_i, Y_i) pairs."""
+    X_rank = pd.Series(X).rank().values
+    Y_rank = pd.Series(Y).rank().values
+    return pearson_correlation(X_rank, Y_rank)
+
+
+def est_mse(true, est):
+    return np.mean((true - est)**2)
+
+
+def est_rmse(true, est):
+    return np.sqrt(est_mse(true, est))
+
+
+def est_mean_error(true, est):
+    return np.mean(true - est)
