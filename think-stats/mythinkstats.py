@@ -319,15 +319,18 @@ def percentile(a, q):
     return sorted(a)[n - 1]
 
 
-def pmf_to_cdf(pmf):
-    cdf = pmf.sort_index().cumsum()
+def pmf_to_cdf(pmf, precision=5):
+    cdf = pmf.copy()
+    cdf.index = cdf.index.values.round(precision)
+    cdf = cdf.sort_index().cumsum()
     return cdf / cdf.max()
-    # return pmf.sort_index().cumsum()
 
 
 def cdf_percentile(cdf, q):
-    q = q if 0 <= q <= 1 else q / 100.
-    return cdf.index[np.argmin(abs(cdf.values - q))]
+    """percentile = proportion of values in cdf less than q.
+    Return the value representing percentile q, e.g. in a list of integers
+    1 to 100, the percentile q is equal to the number q."""
+    return max(cdf.index.values * (cdf.values <= q / 100))
 
 
 def cdf_percentile_rank(cdf, q):
@@ -340,6 +343,11 @@ def cdf_random_sample(cdf, n):
     randomly-chosen percentiles."""
     Q = np.random.uniform(0, 100, n)
     return pd.Series(Q).apply(lambda q: cdf_percentile(cdf, q))
+
+
+def cdf_pvalue(cdf, x):
+    """Return the P(x > X) computed from a CDF."""
+    return 1 - max(cdf.values * (cdf.index < x))
 
 
 def pmf_exponential(lam, X=np.linspace(0, 5, 1001)):
