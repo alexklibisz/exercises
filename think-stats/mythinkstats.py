@@ -428,3 +428,19 @@ def est_rmse(true, est):
 
 def est_mean_error(true, est):
     return np.mean(true - est)
+
+
+def est_rsquared(X, Y, m, b):
+    res = Y - (m * X + b)
+    return 1 - np.var(res) / np.var(Y)
+
+
+def est_residual(X, Y, m, b):
+    return Y - (m * X + b)
+
+
+def fit_least_squares(X, Y):
+    """Y ~= mx + b"""
+    m = covariance(X, Y) / np.var(X)
+    b = np.mean(Y) - m * np.mean(X)
+    return m, b
