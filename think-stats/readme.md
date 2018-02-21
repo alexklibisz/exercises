@@ -1,3 +1,3 @@
-Exercises from Allen Downey's Think Stats 2nd Edition.
+Exercises from [Allen Downey's Think Stats 2nd Edition](http://greenteapress.com/wp/think-stats-2e/).
 
-To make sure I internalize the concepts, I re-implement much of the `thinkstats` module and directly use matplotlib instead of `thinkplot`. I try my best to use bare-bones Pandas, Numpy, and Scipy as much as possible (i.e. favor repetitive code over potentially ambiguous abstractions). I do use most of his code for reading data, as there's not much to learn there.
+To make sure I internalize the concepts, I re-implement much of the `thinkstats` module and directly use matplotlib instead of Downey's `thinkplot`. I try my best to use bare-bones Pandas, Numpy, and Scipy as much as possible (i.e. favor repetitive code over potentially ambiguous abstractions). I do use most of his code for reading data, as there's not much to change/learn there.

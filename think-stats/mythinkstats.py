@@ -1,3 +1,4 @@
+from collections import Counter
 from math import ceil, pi, sqrt, log
 import numpy as np
 import pandas as pd
@@ -121,10 +122,10 @@ def read_data(dct_file, dat_file, nrows=None):
     return nsfg_read_data(dct_file, dat_file, nrows)
 
 
-def nsfg_read_data(dct_file, dat_file, nrows=None):
+def nsfg_read_data(dct_file, dat_file, nrows=None, **opts):
 
     dct = ReadStataDct(dct_file)
-    df = dct.ReadFixedWidth(dat_file, compression='gzip', nrows=nrows)
+    df = dct.ReadFixedWidth(dat_file, compression='gzip', nrows=nrows, **opts)
 
     if 'FemPreg' in dct_file and 'FemPreg' in dat_file:
         CleanFemPreg(df)
@@ -133,6 +134,56 @@ def nsfg_read_data(dct_file, dat_file, nrows=None):
         CleanFemResp(df)
 
     return df
+
+
+def nsfg_read_resp_by_year(data_dir='.', year=1995):
+    """Reads respondent data from NSFG Cycle 5.
+
+    returns: DataFrame
+    """
+
+    if year == 1995:
+
+        dat_file = '%s/1995FemRespData.dat.gz' % data_dir
+        names = ['cmintvw', 'timesmar', 'cmmarrhx', 'cmbirth', 'finalwgt']
+        colspecs = [(12360 - 1, 12363),
+                    (4637 - 1, 4638),
+                    (11759 - 1, 11762),
+                    (14 - 1, 16),
+                    (12350 - 1, 12359)]
+        df = pd.read_fwf(dat_file, compression='gzip',
+                         colspecs=colspecs, names=names)
+        df.timesmar.replace([98, 99], np.nan, inplace=True)
+        df['evrmarry'] = (df.timesmar > 0)
+
+        CleanFemResp(df)
+        return df
+
+    if year == 2002:
+        return nsfg_read_data('%s/2002FemResp.dct' % data_dir,
+                              '%s/2002FemResp.dat.gz' % data_dir)
+
+    if year == 2010:
+        usecols = ['caseid', 'cmmarrhx', 'cmdivorcx', 'cmbirth', 'cmintvw',
+                   'evrmarry', 'parity', 'wgtq1q16']
+        df = nsfg_read_data('%s/2006_2010_FemRespSetup.dct' % data_dir,
+                            '%s/2006_2010_FemResp.dat.gz' % data_dir,
+                            usecols=usecols)
+        df['evrmarry'] = (df.evrmarry == 1)
+        df['finalwgt'] = df.wgtq1q16
+        CleanFemResp(df)
+        return df
+
+    if year == 2013:
+        usecols = ['caseid', 'cmmarrhx', 'cmdivorcx', 'cmbirth', 'cmintvw',
+                   'evrmarry', 'parity', 'wgt2011_2013']
+        df = nsfg_read_data('%s/2011_2013_FemRespSetup.dct' % data_dir,
+                            '%s/2011_2013_FemRespData.dat.gz' % data_dir,
+                            usecols=usecols)
+        df['evrmarry'] = (df.evrmarry == 1)
+        df['finalwgt'] = df.wgt2011_2013
+        CleanFemResp(df)
+        return df
 
 
 def babyboom_read_data(filename):
@@ -326,6 +377,10 @@ def pmf_to_cdf(pmf, precision=5):
     return cdf / cdf.max()
 
 
+def cdf_to_pmf(cdf):
+    return cdf - cdf.shift(1).fillna(0)
+
+
 def cdf_percentile(cdf, q):
     """percentile = proportion of values in cdf less than q.
     Return the value representing percentile q, e.g. in a list of integers
@@ -348,6 +403,14 @@ def cdf_random_sample(cdf, n):
 def cdf_pvalue(cdf, x):
     """Return the P(x > X) computed from a CDF."""
     return 1 - max(cdf.values * (cdf.index < x))
+
+
+def ccdf_to_hazard(ccdf):
+    return pd.Series((ccdf.values[:-1] - ccdf.values[1:]) / ccdf.values[:-1],
+                     index=ccdf.index.values[:-1])
+
+    # for i, p0, p1 in zip(ccdf.values[:-1], ccdf.values[1:]):
+    #     print(p0, p1)
 
 
 def pmf_exponential(lam, X=np.linspace(0, 5, 1001)):
@@ -453,3 +516,38 @@ def serial_correlation(X, lag=1, corrfunc=pearson_correlation):
 def autocorrelation(X, lags=np.arange(0, 365), corrfunc=pearson_correlation):
     """A very lazy autocorrelation implementation"""
     return [(lag, corrfunc(X[:-lag], X[lag:])) for lag in lags]
+
+
+def kaplan_meier_survival(cmpl, ongo):
+
+    # Count the ages for complete (married) and ongoing (unmarried) samples.
+    cmpl_cnts, ongo_cnts = Counter(cmpl), Counter(ongo)
+
+    # Aggregate and sort the possible ages.
+    ages = sorted(set(cmpl).union(ongo))
+
+    # Place to store the estimates.
+    S_hat = np.zeros(len(ages))
+
+    # Compute the estimate at each age.
+    running_prod = 1.
+    nb_at_risk = len(cmpl) + len(ongo)
+    for i, t in enumerate(ages):
+
+        # d = number of events (marriages) at time t.
+        d = cmpl_cnts[t]
+
+        # n = number of individuals at risk (unmarried) at time t.
+        n = nb_at_risk
+
+        # S-hat(t) = running product of (1 - d/n).
+        if i == 0:
+            S_hat[i] = (1 - d / n)
+        else:
+            S_hat[i] = S_hat[i - 1] * (1 - d / n)
+
+        # Decrement number at risk by subtracting all people of this age.
+        nb_at_risk -= (cmpl_cnts[t] + ongo_cnts[t])
+
+    # Return the survival as a CCDF.
+    return pd.Series(S_hat, index=ages)
