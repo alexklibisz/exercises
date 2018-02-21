@@ -444,3 +444,12 @@ def fit_least_squares(X, Y):
     m = covariance(X, Y) / np.var(X)
     b = np.mean(Y) - m * np.mean(X)
     return m, b
+
+
+def serial_correlation(X, lag=1, corrfunc=pearson_correlation):
+    return corrfunc(X[:-lag], X[lag:])
+
+
+def autocorrelation(X, lags=np.arange(0, 365), corrfunc=pearson_correlation):
+    """A very lazy autocorrelation implementation"""
+    return [(lag, corrfunc(X[:-lag], X[lag:])) for lag in lags]
