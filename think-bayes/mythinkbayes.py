@@ -2,11 +2,8 @@ import numpy as np
 import pandas as pd
 import pdb
 
-# def Pmf(values=[]):
-#     return pd.Series(values).value_counts(normalize=True)
 
-
-class DiscreteVariable(pd.Series):
+class PMF(pd.Series):
     """A thin wrapper on Pandas Series class used to represent a discrete
     random variable for Bayesian modeling."""
 
@@ -22,6 +19,11 @@ class DiscreteVariable(pd.Series):
         if priors is None:
             priors = np.ones(len(hypos)) / len(hypos)
         super().__init__(priors, index=hypos, **kwargs)
+        self.normalize()
+
+    @property
+    def hypos(self):
+        return self.index
 
     def normalize(self):
         self /= self.sum()
@@ -33,7 +35,27 @@ class DiscreteVariable(pd.Series):
         return self.normalize()
 
     def copy(self):
-        return DiscreteVariable(self.index, self.values)
+        return PMF(self.index, self.values)
+
+    def expectation(self):
+        return sum(self.index * self.values)
+
+    def cdf(self):
+        return
 
     def likelihood(self, data, hypo):
         raise NotImplementedError
+
+
+class CDF(pd.Series):
+
+    @staticmethod
+    def from_pmf(pmf):
+        cdf = pmf.sort_index().cumsum()
+        return CDF(cdf.index, cdf / cdf.max())
+
+    def __init__(self, hypos, probs, **kwargs):
+        super().__init__(probs, index=hypos, **kwargs)
+
+    def percentile(self, q):
+        return max(self.index.values * (self.values < q / 100))
