@@ -1,3 +1,4 @@
+from math import ceil
 import numpy as np
 import pandas as pd
 import pdb
@@ -25,6 +26,10 @@ class PMF(pd.Series):
     def hypos(self):
         return self.index
 
+    @property
+    def probs(self):
+        return self.values
+
     def normalize(self):
         self /= self.sum()
         return self
@@ -40,8 +45,9 @@ class PMF(pd.Series):
     def expectation(self):
         return sum(self.index * self.values)
 
-    def cdf(self):
-        return
+    def MAP(self):
+        i = self.idxmax()
+        return i, self[i]
 
     def likelihood(self, data, hypo):
         raise NotImplementedError
@@ -58,4 +64,8 @@ class CDF(pd.Series):
         super().__init__(probs, index=hypos, **kwargs)
 
     def percentile(self, q):
-        return max(self.index.values * (self.values < q / 100))
+        mapgtq = self.values > q / 100
+        return min(self.index.values[mapgtq])
+
+    def interval(self, Q):
+        return [self.percentile(q) for q in Q]
