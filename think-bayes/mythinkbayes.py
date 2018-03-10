@@ -100,11 +100,16 @@ class PMF(pd.Series):
         other: another PMF instance.
         returns: new PMF instance.
         """
-        c = Counter()
-        for hi, p1 in self.items():
-            for h2, p2 in other.items():
-                c[hi - h2] += p1 * p2
-        return PMF(hypos=list(c.keys()), priors=list(c.values()))
+
+        if isinstance(other, (pd.Series, PMF)):
+            c = Counter()
+            for hi, p1 in self.items():
+                for h2, p2 in other.items():
+                    c[hi - h2] += p1 * p2
+            return PMF(hypos=list(c.keys()), priors=list(c.values()))
+
+        else:
+            raise NotImplementedError("Not sure how to do this subtraction.")
 
     def __pow__(self, other):
         return PMF(self.hypos, self.probs ** other)
@@ -131,6 +136,9 @@ class CDF(pd.Series):
     def to_pmf(self):
         return PMF.from_cdf(self)
 
+    def to_ccdf(self):
+        return CDF(self.hypos, 1 - self.probs)
+
     def percentile(self, q):
         mapgtq = self.values > q / 100
         return min(self.index.values[mapgtq])
@@ -140,3 +148,18 @@ class CDF(pd.Series):
 
     def __pow__(self, other):
         return CDF(self.hypos, self.probs ** other)
+
+    def __sub__(self, other):
+
+        if isinstance(other, (pd.Series, CDF)):
+            c = Counter()
+            for hi, p1 in self.items():
+                for h2, p2 in other.items():
+                    c[hi - h2] += p1 * p2
+            return CDF(list(c.keys()), list(c.values()))
+
+        elif isinstance(other, (float, int)):
+            return CDF(self.hypos, self.probs - other)
+
+        else:
+            raise NotImplementedError("Not sure how to do this subtraction.")
