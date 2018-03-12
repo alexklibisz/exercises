@@ -155,14 +155,17 @@ class CDF(pd.Series):
     def interval(self, Q):
         return [self.percentile(q) for q in Q]
 
-    def lt(self, value):
-        return max(self.probs * (self.hypos < value))
+    def lt(self, x):
+        """P(X < x)"""
+        return max(self.probs * (self.hypos < x))
 
-    def lteq(self, value):
-        return max(self.probs * (self.hypos <= value))
+    def lteq(self, x):
+        """P(X <= x)"""
+        return max(self.probs * (self.hypos <= x))
 
-    def gt(self, value):
-        return 1 - self.lteq(value)
+    def gt(self, x):
+        """P(X > x)"""
+        return 1 - self.lteq(x)
 
     def __pow__(self, other):
         return CDF(self.hypos, self.probs ** other)
