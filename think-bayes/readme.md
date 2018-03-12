@@ -1,0 +1,3 @@
+Exercises from Allen Downey's Think Bayes version 1.09.
+
+To make sure I internalize the concepts, I re-implement much of the `thinkbayes` module and directly use matplotlib instead of Downey's `thinkplot`. I try my best to use bare-bones Pandas, Numpy, and Scipy as much as possible (i.e. favor repetitive code over potentially ambiguous abstractions). I do use most of his code for reading data, as there's not much to change/learn there.
