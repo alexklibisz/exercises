@@ -1,8 +1,10 @@
 from collections import Counter
 from math import ceil
+import csv
 import numpy as np
 import pandas as pd
 import pdb
+import scipy.stats
 
 
 class PMF(pd.Series):
@@ -21,6 +23,7 @@ class PMF(pd.Series):
         if priors is None:
             priors = np.ones(len(hypos)) / len(hypos)
         super().__init__(priors, index=hypos, **kwargs)
+        self.sort_index(inplace=True)
         self.normalize()
 
     @staticmethod
@@ -37,6 +40,11 @@ class PMF(pd.Series):
         """Instantiate the PMF using a list of observed values."""
         counts = Counter(observations)
         return PMF(hypos=list(counts.keys()), priors=list(counts.values()))
+
+    @staticmethod
+    def from_kde(observations, X):
+        kde = scipy.stats.gaussian_kde(observations)
+        return PMF(hypos=X, priors=kde.evaluate(X))
 
     @staticmethod
     def from_mixture(pmfs):
@@ -66,13 +74,14 @@ class PMF(pd.Series):
         return self.normalize()
 
     def copy(self):
-        return PMF(self.index, self.values)
+        return PMF(self.hypos, self.probs)
 
     def expectation(self):
         return sum(self.index * self.values)
 
     def MAP(self):
-        return i, self[self.idxmax()]
+        i = self.idxmax()
+        return i, self[i]
 
     def likelihood(self, data, hypo):
         """Application-specific likelihood function that must be implemented
@@ -146,6 +155,15 @@ class CDF(pd.Series):
     def interval(self, Q):
         return [self.percentile(q) for q in Q]
 
+    def lt(self, value):
+        return max(self.probs * (self.hypos < value))
+
+    def lteq(self, value):
+        return max(self.probs * (self.hypos <= value))
+
+    def gt(self, value):
+        return 1 - self.lteq(value)
+
     def __pow__(self, other):
         return CDF(self.hypos, self.probs ** other)
 
@@ -163,3 +181,31 @@ class CDF(pd.Series):
 
         else:
             raise NotImplementedError("Not sure how to do this subtraction.")
+
+
+class DataSets:
+
+    @staticmethod
+    def get_price_is_right(filepath):
+
+        cols = ['Showcase 1', 'Showcase 2', 'Bid 1', 'Bid 2',
+                'Difference 1', 'Difference 2']
+        col2data = {}
+        with open(filepath) as fp:
+            for t in csv.reader(fp):
+                col, data = t[0], t[1:]
+                if col not in cols:
+                    continue
+                col2data[col] = [int(x) for x in data]
+
+        return pd.DataFrame(col2data).rename(
+            index=str,
+            columns={
+                'Showcase 1': 'showcase1',
+                'Showcase 2': 'showcase2',
+                'Bid 1': 'bid1',
+                'Bid 2': 'bid2',
+                'Difference 1': 'diff1',
+                'Difference 2': 'diff2'})
+
+        return
