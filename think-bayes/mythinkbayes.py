@@ -123,6 +123,47 @@ class PMF(pd.Series):
     def __pow__(self, other):
         return PMF(self.hypos, self.probs ** other)
 
+    def __lt__(self, other):
+        """Equivalent to Downey's Pmf.ProbLess function."""
+
+        if isinstance(other, PMF):
+            total = 0
+            for v1, p1 in self.items():
+                for v2, p2 in other.items():
+                    if v1 < v2:
+                        total += p1 * p2
+            return total
+
+        else:
+            return sum(self.probs * (self.hypos < other))
+
+    def __gt__(self, other):
+        """Equivalent to Downey's Pmf.ProbGreater function."""
+
+        if isinstance(other, PMF):
+            total = 0
+            for v1, p1 in self.items():
+                for v2, p2 in other.items():
+                    if v1 > v2:
+                        total += p1 * p2
+            return total
+
+        else:
+            return sum(self.probs * (self.hypos > other))
+
+    def __eq__(self, other):
+
+        if isinstance(other, PMF):
+            total = 0
+            for v1, p1 in self.items():
+                for v2, p2 in other.items():
+                    if v1 == v2:
+                        total += p1 * p2
+            return total
+
+        else:
+            return sum(self.probs * (self.hypos == other))
+
 
 class CDF(pd.Series):
 
@@ -155,17 +196,18 @@ class CDF(pd.Series):
     def interval(self, Q):
         return [self.percentile(q) for q in Q]
 
-    def lt(self, x):
-        """P(X < x)"""
-        return max(self.probs * (self.hypos < x))
+    def __eq__(self, x):
+        return NotImplementedError
 
-    def lteq(self, x):
-        """P(X <= x)"""
-        return max(self.probs * (self.hypos <= x))
+    def __lt__(self, x):
+        i = self.hypos[self.hypos < x].max()
+        return self[i]
 
-    def gt(self, x):
+    def __gt__(self, x):
         """P(X > x)"""
-        return 1 - self.lteq(x)
+        ccdf = self.to_ccdf()
+        i = ccdf.hypos[ccdf.index <= x].max()
+        return ccdf[i]
 
     def __pow__(self, other):
         return CDF(self.hypos, self.probs ** other)
