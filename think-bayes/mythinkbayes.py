@@ -69,7 +69,7 @@ class PMF(pd.Series):
         return self
 
     def update(self, D):
-        for H in self.index.values:
+        for H in self.hypos:
             self[H] *= self.likelihood(D, H)
         return self.normalize()
 
@@ -254,3 +254,91 @@ class DataSets:
                 'Difference 2': 'diff2'})
 
         return
+
+
+class RedLineCalculator:
+    """Single class encapsulating model from Chapter 8 Redline problem.
+
+    # Arguments:
+        Z_historic: either a list of train arrival intervals in minutes, or
+            a PMF representing the train arrival intervals.
+        passengers_historic: a list in format (k1, y, k2) where y is the 
+            number of minutes spent waiting and k2 is the number of passengers
+            that arrived during the wait.
+
+    """
+
+    def __init__(self, Z_historic, passengers_historic):
+
+        # PMF for Z: arrival intervals.
+        if isinstance(Z_historic, PMF):
+            self.Z = Z_historic
+        else:
+            lo, hi = 0, 2 * max(Z_historic)
+            self.Z = PMF.from_kde(Z_historic, np.arange(lo, hi))
+
+        # PMF for Zb: observer-biased Z.
+        self.Zb = PMF(self.Z.hypos, self.Z.hypos * self.Z.probs)
+
+        # PMF for X and Y: elapsed time and passenger waiting time.
+        # This is computed as a weighted mixture of uniform
+        # distributions for the possible waiting times.
+        pmfs = []
+        for interval, prob in self.Zb.items():
+            pmfs.append((PMF(range(int(interval) + 1)), prob))
+            pmfs[-1][0][0] *= 0
+
+        self.X = PMF.from_mixture(pmfs)
+
+        # PMF for lambda: arrival rate.
+        # Immediately compute a posterior distribution based on the
+        # wait times and numbers of passengers observed.
+        hypos = np.linspace(1e-7, 5, 51)
+        self.lam = PMF(hypos)
+        for lam_hypo in self.lam.hypos:
+            for _, y, k2 in passengers_historic:
+                # y is time (minutes) spent waiting.
+                # k2 is the number of passengers who arrived in that time.
+                # like is P(k2 | passenger rate per minute * minutes spent waiting)
+                like = scipy.stats.poisson.pmf(k2, y * lam_hypo)
+                self.lam[lam_hypo] *= like
+        self.lam.normalize()
+
+    def estimate_Y(self, n_passengers=15):
+        """Estimates Y (waiting time) distribution given number of passengers 
+        observed.
+
+        # Arguments:
+            n_passengers: number of passengers observed on the platform.
+
+        # Returns:
+            Y: mixed PMF over waiting times.
+        """
+
+        # Construct mixture of Y PMFs for values of lambda.
+        pmfs = []
+
+        for lam, lam_prob in self.lam.items():
+
+            # Update X to reflect this arrival rate and number of passengers.
+            X_post = self.X.copy()
+
+            for elapsed, elapsed_prob in X_post.items():
+                # P(n_passengers | lambda, minutes elapsed hypothesis)
+                like = scipy.stats.poisson.pmf(n_passengers, lam * elapsed)
+                X_post[elapsed] *= like
+
+            X_post.normalize()
+
+            # Estimate Y from Zb and X posterior.
+            # Remove negative values and zero-out the 0 entry.
+            Y = self.Zb - X_post
+            Y[0] *= 0
+            for h in Y.hypos:
+                if h < 0:
+                    del Y[h]
+            Y.normalize()
+
+            pmfs.append((Y, lam_prob))
+
+        return PMF.from_mixture(pmfs)
