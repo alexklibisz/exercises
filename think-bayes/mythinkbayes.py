@@ -228,6 +228,15 @@ class CDF(pd.Series):
             raise NotImplementedError("Not sure how to do this subtraction.")
 
 
+class Joint:
+
+    def marginal(self, i):
+        c = Counter()
+        for ndkey, prob in self.items():
+            c[ndkey[i]] += prob
+        return PMF(list(c.keys()), list(c.values()))
+
+
 class DataSets:
 
     @staticmethod
