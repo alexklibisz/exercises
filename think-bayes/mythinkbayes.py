@@ -38,8 +38,8 @@ class PMF(pd.Series):
     @staticmethod
     def from_observations(observations):
         """Instantiate the PMF using a list of observed values."""
-        counts = Counter(observations)
-        return PMF(hypos=list(counts.keys()), priors=list(counts.values()))
+        c = Counter(observations)
+        return PMF.from_dict(c)
 
     @staticmethod
     def from_kde(observations, X):
@@ -49,12 +49,15 @@ class PMF(pd.Series):
     @staticmethod
     def from_mixture(pmfs):
         """Instantiate a PMF using a list of (pmf, weight) tuples."""
-        probs = Counter()
+        c = Counter()
         for pmf, weight in pmfs:
             for hypo, prob in pmf.items():
-                probs[hypo] += weight * prob
+                c[hypo] += weight * prob
+        return PMF.from_dict(c)
 
-        return PMF(list(probs.keys()), list(probs.values()))
+    @staticmethod
+    def from_dict(d):
+        return PMF(hypos=list(d.keys()), priors=list(d.values()))
 
     @property
     def hypos(self):
@@ -235,6 +238,56 @@ class Joint:
         for ndkey, prob in self.items():
             c[ndkey[i]] += prob
         return PMF(list(c.keys()), list(c.values()))
+
+    def conditional(self, i, j, val):
+        """Gets the conditional distribution of the indicated variable.
+
+        Distribution of ndkey[i], conditioned on ndkey[j] = val.
+
+        i: index of the variable we want
+        j: which variable is conditioned on
+        val: the value the jth variable has to have
+
+        Returns: PMF
+        """
+        c = Counter()
+        for ndkey, prob in self.items():
+            if ndkey[j] == val:
+                c[ndkey[i]] += prob
+        return PMF.from_dict(c)
+
+    def mlintervals(self, P=[0.25, 0.50, 0.75]):
+        """Greedy computation of maximum-likelihood intervals.
+
+        # Arguments:
+            P: list of interval sizes, each in [0, 1].
+
+        # Returns:
+            interval: PMF including entries within the specified intervals.
+        """
+
+        # Pre-sort by probability in descending order.
+        greedy = PMF(self.hypos, self.probs).sort_values(ascending=False)
+        greedy = greedy.sort_values(ascending=False).cumsum()
+
+        c = Counter()
+
+        for p in P:
+            assert 0 <= p <= 1
+            hypos = greedy[greedy <= p].index
+            for h in hypos:
+                c[h] += 1
+
+        return PMF.from_dict(c)
+
+    @staticmethod
+    def contour_args(pmf):
+        """Return the arguments needed for plt.contour and similar 
+        color-map style visualizations."""
+        X, Y = np.meshgrid(*zip(*pmf.hypos))
+        func = np.vectorize(lambda x, y: pmf[(x, y)])
+        pdb.set_trace()
+        return X, Y, func(X, Y)
 
 
 class DataSets:
