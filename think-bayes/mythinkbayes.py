@@ -257,24 +257,29 @@ class Joint:
         return PMF.from_dict(c)
 
     def mlintervals(self, P=[0.25, 0.50, 0.75]):
-        """Greedy computation of maximum-likelihood intervals.
+        """Maximum-likelihood intervals.
+
+        Uses a greedy method to identify the hypos with likelihoods that 
+        sum to satisfying the specified intervals.
 
         # Arguments:
             P: list of interval sizes, each in [0, 1].
 
         # Returns:
-            interval: PMF including entries within the specified intervals.
+            PMF: PMF object with probs weighted by the number of credible
+            regions in which the hypo occurred.
         """
 
         # Pre-sort by probability in descending order.
         greedy = PMF(self.hypos, self.probs).sort_values(ascending=False)
         greedy = greedy.sort_values(ascending=False).cumsum()
 
-        c = Counter()
+        c = {hypo: 0 for hypo in greedy.index}
 
         for p in P:
             assert 0 <= p <= 1
-            hypos = greedy[greedy <= p].index
+            lim = sum(greedy < p) + 1
+            hypos = greedy.iloc[:lim].index
             for h in hypos:
                 c[h] += 1
 
@@ -284,9 +289,11 @@ class Joint:
     def contour_args(pmf):
         """Return the arguments needed for plt.contour and similar 
         color-map style visualizations."""
-        X, Y = np.meshgrid(*zip(*pmf.hypos))
-        func = np.vectorize(lambda x, y: pmf[(x, y)])
-        pdb.set_trace()
+        xs, ys = zip(*pmf.hypos)
+        xs = sorted(set(xs))
+        ys = sorted(set(ys))
+        X, Y = np.meshgrid(xs, ys)
+        func = np.vectorize(lambda x, y: pmf[(x, y)] if (x, y) in pmf else 0)
         return X, Y, func(X, Y)
 
 
@@ -361,7 +368,8 @@ class RedLineCalculator:
             for _, y, k2 in passengers_historic:
                 # y is time (minutes) spent waiting.
                 # k2 is the number of passengers who arrived in that time.
-                # like is P(k2 | passenger rate per minute * minutes spent waiting)
+                # like is P(k2 | passenger rate per minute * minutes spent
+                # waiting)
                 like = scipy.stats.poisson.pmf(k2, y * lam_hypo)
                 self.lam[lam_hypo] *= like
         self.lam.normalize()
