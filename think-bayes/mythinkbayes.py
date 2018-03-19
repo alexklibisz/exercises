@@ -82,6 +82,13 @@ class PMF(pd.Series):
     def expectation(self):
         return sum(self.index * self.values)
 
+    def var(self):
+        mu = self.expectation()
+        return sum((self.index - mu)**2 * self.values)
+
+    def std(self):
+        return np.sqrt(self.var())
+
     def MAP(self):
         i = self.idxmax()
         return i, self[i]
