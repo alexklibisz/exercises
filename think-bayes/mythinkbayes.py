@@ -35,6 +35,9 @@ class PMF(pd.Series):
     def to_cdf(self):
         return CDF.from_pmf(self)
 
+    def to_dict(self):
+        return {h: p for h, p in self.items()}
+
     @staticmethod
     def from_observations(observations):
         """Instantiate the PMF using a list of observed values."""
@@ -200,7 +203,8 @@ class CDF(pd.Series):
         return CDF(self.hypos, 1 - self.probs)
 
     def percentile(self, q):
-        mapgtq = self.values > q / 100
+        q = q if 0 <= q <= 1 else q / 100
+        mapgtq = self.values > q
         return min(self.index.values[mapgtq])
 
     def interval(self, Q):
