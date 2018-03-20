@@ -114,7 +114,7 @@ class PMF(pd.Series):
         for h1, p1 in self.items():
             for h2, p2 in other.items():
                 c[h1 + h2] += p1 * p2
-        return PMF(hypos=list(c.keys()), priors=list(c.values()))
+        return PMF.from_dict(c)
 
     def __sub__(self, other):
         """Computes the PMF of the difference of values in self and other.
@@ -123,15 +123,42 @@ class PMF(pd.Series):
         returns: new PMF instance.
         """
 
-        if isinstance(other, (pd.Series, PMF)):
-            c = Counter()
-            for hi, p1 in self.items():
-                for h2, p2 in other.items():
-                    c[hi - h2] += p1 * p2
-            return PMF(hypos=list(c.keys()), priors=list(c.values()))
+        assert isinstance(other, (pd.Series, PMF)), \
+            NotImplementedError(
+                "Operation for types %s and %s not implemented." % (
+                    type(self), type(other)))
 
-        else:
-            raise NotImplementedError("Not sure how to do this subtraction.")
+        c = Counter()
+        for h1, p1 in self.items():
+            for h2, p2 in other.items():
+                c[h1 - h2] += p1 * p2
+        return PMF.from_dict(c)
+
+    def __mul__(self, other):
+
+        assert isinstance(other, (pd.Series, PMF)), \
+            NotImplementedError(
+                "Operation for types %s and %s not implemented." % (
+                    type(self), type(other)))
+
+        c = Counter()
+        for h1, p1 in self.items():
+            for h2, p2 in other.items():
+                c[h1 * h2] = p1 * p2
+        return PMF.from_dict(c)
+
+    def __truediv__(self, other):
+
+        assert isinstance(other, (pd.Series, PMF)), \
+            NotImplementedError(
+                "Operation for types %s and %s not implemented." % (
+                    type(self), type(other)))
+
+        c = Counter()
+        for h1, p1 in self.items():
+            for h2, p2 in other.items():
+                c[h1 / h2] = p1 * p2
+        return PMF.from_dict(c)
 
     def __pow__(self, other):
         return PMF(self.hypos, self.probs ** other)
