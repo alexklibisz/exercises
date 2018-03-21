@@ -237,6 +237,10 @@ class CDF(pd.Series):
     def interval(self, Q):
         return [self.percentile(q) for q in Q]
 
+    def sample(self, n):
+        P = np.random.uniform(0, 1, n)
+        return np.array([self.percentile(p) for p in P])
+
     def __eq__(self, x):
         return NotImplementedError
 
