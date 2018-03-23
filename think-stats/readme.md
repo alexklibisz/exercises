@@ -1,3 +1,5 @@
 Exercises from [Allen Downey's Think Stats 2nd Edition](http://greenteapress.com/wp/think-stats-2e/).
 
 To make sure I internalize the concepts, I re-implement much of the `thinkstats` module and directly use matplotlib instead of Downey's `thinkplot`. I try my best to use bare-bones Pandas, Numpy, and Scipy as much as possible (i.e. favor repetitive code over potentially ambiguous abstractions). I do use most of his code for reading data, as there's not much to change/learn there.
+
+Certain parts of the code require [Downey's ThinkStats2 code](https://github.com/AllenDowney/ThinkStats2). To make this work, simply clone the ThinkBayes2 repository into this directory. The latest commit when I used the code was [9e74eed](https://github.com/AllenDowney/ThinkStats2/commit/4a8b2cf275974261327b9f9b68a7ba7a49e74eed).
