@@ -1,2 +1,3 @@
 # ml-exercises
-Misc. machine learning exercises.
+
+Machine learning and statistical modeling exercises.
