@@ -330,7 +330,7 @@
 (println (fast-mul 2 9))
 (println (fast-mul 3 9))
 
-(println "--Exercise 1.18---")
+(println "---Exercise 1.18---")
 
 ; Equivalent scala
 ; def mul2(a: Int, b: Int): Int =
@@ -348,3 +348,108 @@
 (println (fast-mul-iter 10 10))
 (println (fast-mul-iter 2 9))
 (println (fast-mul-iter 3 9))
+
+(println  "---Exercise 1.19---")
+
+(defn fib [n]
+  (cond (= n 0) 0
+        (= n 1) 1
+        :else (+ (fib (- n 1)) (fib (- n 2)))))
+
+; Had to look here to understand this one:
+; http://www.billthelizard.com/2010/01/sicp-exercise-119-computing-fibonacci.html
+(defn fast-fib
+  ([n] (fast-fib 1 0 0 1 n))
+  ([a b p q n]
+    (cond (= n 0) b
+          (even? n) (fast-fib
+                      a
+                      b
+                      (+ (* p p) (* q q))
+                      (+ (* 2 (* p q)) (* q q))
+                      (/ n 2))
+          :else (fast-fib
+                  (+ (* b q) (* a q) (* a p))
+                  (+ (* b p) (* a q))
+                  p
+                  q
+                  (- n 1))
+          )))
+
+(println [(fib 6) (fast-fib 6)])
+
+(println "---Exercise 1.20---")
+
+; Implemented in scala:
+; def ifNormal[A](pr: => Boolean, t: => A, f: => A): A = pr match {
+;    case true  => t
+;    case false => f
+;  }
+;
+;  def ifApplic[A](pr: => Boolean, t: A, f: A): A = pr match {
+;    case true  => t
+;    case false => f
+;  }
+;
+;  def remainder(a: Int, b: Int): Int = {
+;    println(s"remainder(a=$a, b=$b)")
+;    a % b
+;  }
+;
+;  def gcdNormal(a: Int, b: Int): Int =
+;    ifNormal[Int](b == 0, a, gcdNormal(b, remainder(a, b)))
+;
+;  def gcdApplic(a: Int, b: Int): Int =
+;    ifApplic[Int](b == 0, a, gcdApplic(b, remainder(a, b)))
+;
+;  println("---gcdNormal---")
+;  println(gcdNormal(206, 40))
+;  println("---gcdApplic---")
+;  println(gcdApplic(206, 40))
+
+(println "---Exercise 1.21---")
+
+(defn next-div [t] (inc t))
+
+(defn find-divisor
+  [n t] (cond (> (* t t) n) n
+              (= (mod n t) 0) t
+              :else (find-divisor n (next-div t))))
+
+(defn smallest-divisor [n] (find-divisor n 2))
+
+; 199 and 1999 are prime; 19999 is divisible by 7 and 2857.
+(println [(smallest-divisor 199), (smallest-divisor 1999), (smallest-divisor 19999)])
+
+(println "---Exercise 1.22---")
+
+(defn prime? [n] (= n (smallest-divisor n)))
+
+(defn search-for-primes
+  ([m n] (search-for-primes m n (vector)))
+  ([m n primes-so-far]
+    (cond (= n 0) primes-so-far
+          (prime? m) (search-for-primes (inc m) (dec n) (conj primes-so-far m))
+          :else (search-for-primes (inc m) n primes-so-far))))
+
+; The timing ends up being very noisy. Maybe a property of the JVM?
+(doseq [m [1000 10000 100000]]
+  (do (doseq [prime (search-for-primes m 3)]
+        (do (print prime)
+            (print " ")
+            (time (prime? prime))))
+      (println "---")))
+
+
+(println "")
+(println "---Exercise 1.23---")
+
+(defn next-div [t] (if (= t 2) 3 (+ t 2)))
+(doseq [m [1000 10000 100000]]
+  (do (doseq [prime (search-for-primes m 3)]
+        (do (print prime)
+            (print " ")
+            (time (prime? prime))))
+      (println "---")))
+
+;
