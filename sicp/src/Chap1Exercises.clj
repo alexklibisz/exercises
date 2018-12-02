@@ -409,6 +409,7 @@
 
 (println "---Exercise 1.21---")
 
+; Naiive next-div.
 (defn next-div [t] (inc t))
 
 (defn find-divisor
@@ -433,23 +434,97 @@
           :else (search-for-primes (inc m) n primes-so-far))))
 
 ; The timing ends up being very noisy. Maybe a property of the JVM?
-(doseq [m [1000 10000 100000]]
-  (do (doseq [prime (search-for-primes m 3)]
-        (do (print prime)
-            (print " ")
-            (time (prime? prime))))
-      (println "---")))
+(defn prime-timing []
+  (do
+    (doseq [m [1000 10000 100000]]
+      (do (doseq [prime (search-for-primes m 3)]
+            (do (print prime)
+                (print " ")
+                (time (prime? prime))))
+          (println "---")))))
 
+(prime-timing)
 
 (println "")
 (println "---Exercise 1.23---")
 
+; Override the next-div function.
 (defn next-div [t] (if (= t 2) 3 (+ t 2)))
-(doseq [m [1000 10000 100000]]
-  (do (doseq [prime (search-for-primes m 3)]
-        (do (print prime)
-            (print " ")
-            (time (prime? prime))))
-      (println "---")))
+(prime-timing)
 
-;
+(println "---Exercise 1.24---")
+
+(defn expmod [base exp m]
+  (cond (= exp 0) 1
+          (even? exp) (mod (square (expmod base (/ exp 2) m)) m)
+          :else (mod (* base (expmod base (- exp 1) m)) m))
+    )
+
+(defn try-it [a n]
+  (= (expmod a n n) a))
+
+(defn fermat-test [n]
+  (try-it (inc (rand-int (dec n))) n))
+
+(defn fast-prime? [n times]
+  (cond (= times 0) true
+        (fermat-test n) (fast-prime? n (dec times))
+        :else false))
+
+; Override the prime function.
+(defn prime? [n] (fast-prime? n 1))
+(prime-timing)
+
+(println "---Exercise 1.25---")
+; I think they are functionally equivalent.
+; In both cases they only terminate once n has decreased to zero.
+; The only difference is that the first expmod adds the modulo
+; inside the returned expression.
+
+(println "---Exercise 1.26---")
+; Why is this O(n) and not O(log n)?
+; Using square: each invocation of expmod(exp = n) yields a single invocation of expmod(exp = n / 2). So the number of computations is proportional to the sum of the logs of the exps.
+; For example, starting with exp = 8, the number of computations is proportional to
+;	  log(4) + log(2) + log(1) = log(8)
+; Using multiplication: each invocation of expmod(exp = n) invokes two more expmod(exp = n / 2).
+; For example, starting with exp = 8, the number of computations is proportional to
+;	  2 * log2(4) + 4 * log2(2) + 8 * log2(1) = 8
+
+(println "---Exercise 1.27---")
+; Smallest carmichael numbers: 561, 1105, 1729, 2465, 2821, 6601
+; These are numbers which fool the fermat test.
+
+(def realprimes [5 7 11 13])
+(def carmichaels [561 1105 1729 2465 2821])                 ; these aren't really prime.
+(defn check-congruent
+  ([n] (check-congruent n 1))
+  ([n a] (cond (= n a) true
+               (= (expmod a n n) (mod a n)) (check-congruent n (inc a))
+               :else false)))
+
+(doseq [n realprimes] (println [n, (check-congruent n)]))
+(doseq [n carmichaels] (println [n, (check-congruent n)]))
+
+(println "---Exercise 1.28---")
+
+(defn square-check [x m]
+        (if (and
+              (not (or
+                     (= x 1)
+                     (= x (- m 1))))
+              (= (mod (* x x) m) 1))
+          0
+          (mod (* x x) m)
+          ))
+
+(defn expmod [base exp m]
+        (cond (= exp 0) 1
+              (even? exp) (square-check (expmod base (/ exp 2) m) m)
+              :else (mod (* base (expmod base (- exp 1) m)) m)))
+
+(defn try-it [a n] (= (expmod a (- n 1) n) 1))
+
+(defn miller-rabin-test [n]
+  (try-it (+ 2 (rand-int (- n 2))) n))
+
+(doseq [n carmichaels] (println [n, (miller-rabin-test n)]))
