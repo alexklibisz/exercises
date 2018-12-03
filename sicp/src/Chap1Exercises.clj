@@ -151,6 +151,11 @@
 (println "---Exercise 1.9---")
 
 ; The first one basically works by repeatedly removing one from a and adding it to b.
+(defn plus [a b]
+  (if (= a 0)
+    b
+    (inc (plus (dec a) b))))
+(println (plus 2 3))
 ; When adding (+ 2 3), it would look like this:
 ; (+ 2 3)
 ;  inc (+ 1 3)          The if-predicate is false, return the recursive call.
@@ -158,11 +163,6 @@
 ;            3          Now a is 0, return b
 ;       4               Increment b the first time
 ;  5                    Increment b again
-(defn plus [a b]
-  (if (= a 0)
-    b
-    (inc (+ (dec a) b))))
-(println (plus 2 3))
 
 ; The second one works by just repeatedly incrementing b and decrementing a until a is zero.
 ; (+ 2 3)
@@ -240,30 +240,41 @@
 ;  (map ([i] (+ (prevRow i) (prevRow (inc i))))
 ;      (range 1 (- (count prevRow) 2))))
 
+; Define the next row as a function of the previous row.
 (defn pascal-row [prevRow]
+  ; All concat'ed to a vector.
   (concat
+    ; Always starts with a 1.
     [1]
+    ; Map over range to add pairs of numbers from the prev row.
     (map (fn [i] (+ (nth prevRow i) (nth prevRow (inc i))))
          (range 0 (- (count prevRow) 1)))
+    ; Always ends with a 1.
     [1]))
 
 (defn pascal
+  ; Default signature just takes the max level.
   ([maxLevel] (pascal 0 maxLevel [[1]]))
+  ; This signature takes the current level,
+  ; max level, and accumulation of rows so far.
   ([level maxLevel acc]
     (cond
+      ; Return accumulation at the max level.
       (= level maxLevel) acc
       :else
+      ; Otherwise recursive call with incremented
+      ; level, concatenation of next row based on
+      ; this row. ((acc level) is indexing.)
       (pascal
         (inc level) maxLevel
         (conj acc (pascal-row (acc level)))
-        )
-      )))
+        ))))
 
 (doseq [line (pascal 5)] (println line))
 
 (println "---Exercise 1.15---")
 ; Sine and p both get called n times, where n satisfies t * 3^n >= a.
-; Where t is the threshold (0.1) and a the angle. So n = natural-log(a / t)
+; Where t is the threshold (0.1) and a the angle. So n = log(a / t) / log(3)
 ; In the example, n = natural-log(12.5 / 0.1) = 4.8.
 ; This checks out as "sine(...)" and "p(...)" each get printed 5 times.
 ; In terms of space, the runtime has to maintain n function calls on the stack.
@@ -309,9 +320,10 @@
 (defn fast-expt-iter
   ([b n] (fast-expt-iter b 1 n))
   ([r s n]
-    (cond (= n 1) (* r s)
-          (even? n) (fast-expt-iter (* r r) s (/ n 2))
-          :else (fast-expt-iter r (* r s) (- n 1))
+    (cond
+      (= n 1) (* r s)
+      (even? n) (fast-expt-iter (* r r) s (/ n 2))
+      :else (fast-expt-iter r (* r s) (- n 1))
       )))
 
 (println [(Math/pow 3.0 10.0), (fast-expt-iter 3 10)])
@@ -338,11 +350,11 @@
 ;    else if (b % 2 == 0) mul2(double(a), halve(b))
 ;    else a + mul2(a, b - 1)
 (defn fast-mul-iter
-  ([a b] (fast-mul-iter a 0 b))
-  ([r s b]
-    (cond (= b 1) (+ r s)
-          (even? b) (fast-mul-iter (doubl r) s (halve b))
-          :else (fast-mul-iter r (+ r s) (- b 1)))
+  ([a b] (fast-mul-iter a b 0))
+  ([a b c]
+    (cond (= b 1) (+ a c)
+          (even? b) (fast-mul-iter (doubl a) (halve b) c)
+          :else (fast-mul-iter a (- b 1) (+ a c)))
     ))
 
 (println (fast-mul-iter 10 10))
