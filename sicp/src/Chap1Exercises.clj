@@ -540,3 +540,332 @@
   (try-it (+ 2 (rand-int (- n 2))) n))
 
 (doseq [n carmichaels] (println [n, (miller-rabin-test n)]))
+
+; Integrating the cube function using simpson's method.
+; Integral of cube over 0 to 1 should be 0.25.
+(println "---Exercise 1.29---")
+
+(defn integrateSimpson [f a b n]
+  (let [h (/ (- b a) n)]
+    (* (/ h 3.)
+       (loop [acc 0 k 0]
+         (let [p (if (odd? k) 2 4)]
+           (if (= k n) acc
+                       (recur (+ acc (* p (f (+ a (* k h))))) (inc k))))))))
+
+(defn cube [x] (* x x x))
+(println (integrateSimpson cube 0 1 100))
+(println (integrateSimpson cube 0 1 1000))
+
+; Optimize the linearly-recursive sum procedure to be iterative.
+(println "---Exercise 1.30---")
+
+(defn sumLinRec [term a next b]
+  (if (> a b) 0
+              (+ (term a)
+                 (sumLinRec term (next a) next b))))
+
+(defn sum-cubes [a b]
+  (sumLinRec cube a inc b))
+
+(println (sum-cubes 1 10))
+
+(defn sumIterRec [term a next b]
+  (loop [i a acc 0]
+    (if (> i b)
+      acc
+      (recur (next i) (+ acc (term i))))))
+
+(defn sum-cubes [a b]
+  (sumIterRec cube a inc b))
+
+(println (sum-cubes 1 10))
+
+; Write a product function and use it to compute factorials and approximate pi.
+(println "---Exercise 1.31---")
+
+(defn product [f next a b]
+  (loop [i a acc 1.0]
+    (if (> i b)
+      acc
+      (recur (next i) (* acc (f i))))))
+
+(defn factorial [n]
+  (product identity inc 1 n))
+
+(println (factorial 5))
+
+; Very concisely stated: https://en.wikipedia.org/wiki/Wallis_product
+(defn piapprox [n]
+  (* 2 (product
+         (fn [n]
+           (let [_2n (* 2.0 n)]
+             (* (/ _2n (dec _2n)) (/ _2n (inc _2n)))))
+         inc 1 n)))
+
+(println (piapprox 100))
+
+; Define sum and product in terms of accumulate
+(println "---Exercise 1.32---")
+(defn accumulate [f cmb next z a b]
+  (loop [i a acc z]
+    (if (> i b)
+      acc
+      (recur (next i) (cmb acc (f i))))))
+
+(defn sum-accumulate [f next a b]
+  (accumulate f + next 0 a b))
+
+(defn prod-accumulate [f next a b]
+  (accumulate f * next 1 a b))
+
+(println (sum-accumulate cube inc 0 2))
+(println (prod-accumulate cube inc 1 3))
+
+; Implement accumulate with a filter function that rules out some of the values.
+(println  "---Exercise 1.33---")
+
+(defn filtered-accumulate [f cmb next filter z a b]
+  (loop [i a acc z]
+    (if (> i b)
+      acc
+      (recur
+        (next i)
+        (if (filter i) (cmb acc (f i)) acc)))))
+
+(defn prime? [n] (= n (smallest-divisor n)))
+
+(println (filtered-accumulate
+           (fn [i] (* i i)) + inc prime? 0 0 50))
+
+(defn gcd [a b]
+  (if (= b 0) a (gcd b (mod a b))))
+
+(println (filtered-accumulate
+           (fn [i] i) * inc
+           (fn [i] (= 1 (gcd 10 i)))
+           1 1 10))
+
+
+(println "---Exercise 1.34---")
+(defn f [g] (g 2))
+(println (f square))
+(println (f (fn [z] (* z (+ z 1)))))
+;(println (f f)) ; <-- Infinite loop
+
+; Show the gold ratio phi is a fixed point for x -> 1 + 1/x.
+; Implement fixed point to verify it.
+; See http://www.billthelizard.com/2010/07/sicp-exercise-135-fixed-points-and.html
+; for a good explanation of the "show" part. I found the question wording confusing and spun
+; my wheels for too long on this one.
+(println "---Exercise 1.35---")
+
+;; Why doesn't this work?
+;(defn fixed-point [f guess]
+;  (let [tol 0.00001
+;        close-enough? (fn [a b] (< (abs (- a b)) tol))
+;        try (fn [guess]
+;              (let [next (f guess)]
+;                (if (close-enough? guess next) next (try f next))))]
+;    (try guess)))
+
+(defn fixed-point [f guess]
+  (let [next (f guess)
+        tol 0.00001
+        close-enough? (fn [a b] (< (abs (- a b)) tol))]
+    (if (close-enough? guess next)
+      next
+      (fixed-point f next))))
+
+(println (fixed-point (fn [x] (+ 1 (/ 1 x))) 1.7))
+
+; Print the step and guess at each step to find a fixed point for x -> log(1000) / log(x)
+; Then implement it with damping and compare the number of steps.
+(println "---Exercise 1.36---")
+
+(defn fixed-point-print [f guess i]
+  (do (println [i guess])
+      (let [next (f guess)
+            tol 0.00001
+            close-enough? (fn [a b] (< (abs (- a b)) tol))]
+        (if (close-enough? guess next)
+          next
+          (fixed-point-print f next (inc i))))))
+
+; 33 Steps without damping.
+(println (fixed-point-print (fn [x] (/ (Math/log 1000) (Math/log x))) 2 0))
+
+; 8 Steps with damping.
+(println (fixed-point-print (fn [x] (* (/ 1.0 2.0) (+ x (/ (Math/log 1000) (Math/log x))))) 2 0))
+
+; Implement a method cont-frac for computing truncated continued fractions.
+; Use it to approximate 1 / phi (k = 13 to 4 points precision).
+(println "---Exercise 1.37---")
+
+(defn cont-frac [N D k]
+  (loop [k (dec k) acc (/ (N k) (D k))]
+    (if (= k 0)
+      acc
+      (recur (dec k) (/ (N k) (+ (D k) acc))))))
+(println (/ 1 (* 0.5 (+ 1 (Math/sqrt 5.0)))))
+(println (cont-frac (fn [i] 1.0) (fn [i] 1.0) 13))
+(println "---")
+
+; Approximate e (base of natural log) using continued fractions.
+(println "---Exercise 1.38---")
+
+(defn D [i]
+  (if (= 0 (mod (inc i) 3))
+    (* 2 (/ (inc i) 3))
+    1))
+
+(defn approx-e [k]
+  (+ 2.0 (cont-frac (fn [i] 1) D k)))
+
+(println Math/E)
+(println (approx-e 50))
+
+; Approximate the tangent using continued fractions.
+; Subtle problem here was that I overlooked it was subtracting N, not adding.
+(println "---Exercise 1.39---")
+(defn tan-lambert [x k]
+  (let [xsq (* x x)]
+    (cont-frac
+      (fn [i] (if (= i 1) x (- xsq)))
+      (fn [i] (dec (* 2 i)))
+      k)))
+
+(println (Math/tan 3.0))
+(println (tan-lambert 3.0 100))
+
+(println "---Exercise 1.40---")
+
+; Returns the approximate derivative function of the given function.
+(defn deriv
+  ([g] (deriv g 1e-6))
+  ([g dx] (fn [x] (/ (- (g (+ x dx)) (g x)) dx))))
+
+(println ((deriv (fn [x] (* x x x))) 5))
+
+; Returns the newtons-method function of the given function,
+; as defined at the top of page 99.
+(defn newton-transform [g]
+  (fn [x] (- x
+             (/ (g x)
+                ((deriv g) x)                               ; <- the derivative of g evaluated at x.
+                ))))
+
+; Then newtons-method is the fixed point solution of the transformed g.
+(defn newtons-method [g guess]
+  (fixed-point (newton-transform g) guess))
+
+; The function cubic takes the values of a, b, c and returns
+; the function x^3 + ax^2 + bx + c.
+(defn cubic [a b c]
+  (fn [x] (+ (cube x) (* a (square x)) (* b x) c)))
+
+; Solve and check.
+(let [a 1 b 2 c 3
+      solution (newtons-method (cubic a b c) 1)]
+  (println ((cubic a b c) solution)))
+
+
+(println "---Exercise 1.41---")
+(defn dbl [f] (fn [x] (f (f x))))
+(println (((dbl (dbl dbl)) inc) 5))
+
+(println "---Exercise 1.42---")
+(defn compose [f g] (fn [x] (f (g x))))
+(println ((compose square inc) 6))
+
+(println "---Exercise 1.43---")
+(defn repeated [f n]
+  (if (<= n 1) f (compose f (repeated f (dec n)))))
+(println ((repeated square 2) 5))
+
+(println "---Exercise 1.44---")
+(defn smooth
+  ([f] (smooth f 1e-6))
+  ([f dx]
+    (fn [x] (/ (+ (f (- x dx)) (f x) (f (+ x dx))) 3.0))))
+
+(defn smooth-k [f k]
+  (repeated (smooth f) k))
+
+(println "---Exercise 1.45---")
+(defn sqrtfp [x]
+  (let [f (fn [y] (/ x y))]
+    (fixed-point (fn [y] (* 0.5 (+ y (f y)))) 1.0)))
+(println (sqrtfp 16))
+
+(defn average-damp [f]
+  (fn [x] (* 0.5 (+ x (f x)))))
+
+(defn sqrtfp [x]
+  (fixed-point (average-damp (fn [y] (/ x y))) 1.0))
+(println (sqrtfp 16))
+
+(defn cubertfp [x]
+  (fixed-point (average-damp (fn [y] (/ x (square y)))) 1.0))
+(println (cubertfp 27))
+
+(defn root4fp [x]
+  (fixed-point (average-damp (average-damp (fn [y] (/ x (cube y))))) 1.0))
+(println (root4fp 16))
+
+(defn root5fp [x]
+  (fixed-point (average-damp (average-damp (fn [y] (/ x (fast-expt y 4))))) 1.0))
+(println (root5fp 32))
+
+(defn root6fp [x]
+  (fixed-point (average-damp (average-damp (fn [y] (/ x (fast-expt y 5))))) 1.0))
+(println (root6fp 64))
+
+(defn rootnfp [n]
+  (fn [x] (fixed-point (average-damp (average-damp (fn [y] (/ x (fast-expt y (dec n)))))) 1.0)))
+(println ((rootnfp 5) (fast-expt 2 5)))
+(println ((rootnfp 6) (fast-expt 2 6)))
+(println ((rootnfp 7) (fast-expt 2 7)))
+
+; To generalize for the nth root, it seems like you need to apply damping log_2(n) times.
+(defn log2 [x] (/ (Math/log x) (Math/log 2)))
+(defn rootnfp [n]
+  (fn [x] (fixed-point
+            ((repeated average-damp (log2 n))
+              (fn [y] (/ x (fast-expt y (dec n)))))
+            1.0)))
+(println ((rootnfp 5) (fast-expt 2 5)))
+(println ((rootnfp 6) (fast-expt 2 6)))
+(println ((rootnfp 7) (fast-expt 2 7)))
+(println ((rootnfp 8) (fast-expt 2 8)))
+(println ((rootnfp 12) (fast-expt 2 12)))
+
+; Implement an iterative-improve function, then re-implement sqrt and fixed-point in terms of the iterative-improve.
+(println "---Exercise 1.46---")
+(defn iterative-improve [good-enough? improve]
+  (fn [x] (loop [guess x]
+            (if (good-enough? guess)
+              guess
+              (recur (improve guess))))))
+
+(defn sqrt [x]
+  ((iterative-improve
+     (fn [g] (< (abs (- x (* g g))) 1e-5))
+     (fn [g] (* 0.5 (+ g (/ x g)))))
+    x))
+(println (sqrt 25))
+
+;(defn fixed-point [f guess]
+;  (let [next (f guess)
+;        tol 0.00001
+;        close-enough? (fn [a b] (< (abs (- a b)) tol))]
+;    (if (close-enough? guess next)
+;      next
+;      (fixed-point f next))))
+
+(defn fixed-point [f guess]
+  ((iterative-improve
+     (fn [g] (< (abs (- g (f g))) 1e-5))
+     (fn [g] (f g))) guess))
+
+(println (fixed-point (fn [x] (+ 1 (/ 1 x))) 1.7))
