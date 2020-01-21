@@ -1,0 +1,8 @@
+[0m[[0m[0mdebug[0m] [0m[0mAcquiring lock on file /Users/aklibisz/Development/exercises/category-theory-4-programmers/sc/project/target/.sbt-compilation-infos/sc-compile/.sbt-idea-lock ...[0m
+[0m[[0m[31merror[0m] [0m[0m/Users/aklibisz/Development/exercises/category-theory-4-programmers/sc/src/main/scala/Chap01.scala:14:48: type mismatch;[0m
+[0m[[0m[31merror[0m] [0m[0m found   : Double => String[0m
+[0m[[0m[31merror[0m] [0m[0m required: ? => Int[0m
+[0m[[0m[31merror[0m] [0m[0m  val composed2: Int => String = addPi compose stringify[0m
+[0m[[0m[31merror[0m] [0m[0m                                               ^[0m
+[0m[[0m[31merror[0m] [0m[0mone error found[0m
+[0m[[0m[0mdebug[0m] [0m[0mReleasing lock on file /Users/aklibisz/Development/exercises/category-theory-4-programmers/sc/project/target/.sbt-compilation-infos/sc-compile/.sbt-idea-lock.[0m

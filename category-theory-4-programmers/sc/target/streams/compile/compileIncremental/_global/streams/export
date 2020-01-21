@@ -1,0 +1,1 @@
+scalac -classpath /Users/aklibisz/Development/exercises/category-theory-4-programmers/sc/target/scala-2.12/classes -bootclasspath /Users/aklibisz/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.12.7/scala-library-2.12.7.jar /Users/aklibisz/Development/exercises/category-theory-4-programmers/sc/src/main/scala/Chap01.scala
