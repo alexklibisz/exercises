@@ -1,0 +1,8 @@
+[0m[[0m[0mdebug[0m] [0m[0mAcquiring lock on file /home/alex/Documents/dev/redbook/project/target/.sbt-compilation-infos/redbook-compile/.sbt-idea-lock ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/alex/Documents/dev/redbook/src/main/scala/com/klibisz/redbook/Ex5_LazyLists.scala:108:26: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: (Empty, Empty)[0m
+[0m[[0m[33mwarn[0m] [0m[0m      unfold((this, sb)) {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                         ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation (since 2.13.3); re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mtwo warnings found[0m
+[0m[[0m[0mdebug[0m] [0m[0mReleasing lock on file /home/alex/Documents/dev/redbook/project/target/.sbt-compilation-infos/redbook-compile/.sbt-idea-lock.[0m
